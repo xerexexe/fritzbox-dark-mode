@@ -7,6 +7,9 @@ FRITZ!Box Dark Mode 1.0.0 ist die erste öffentliche Ausgabe.
 - Umschalter unten rechts mit lokal gespeicherter Auswahl.
 - Statusfarben und Verbindungsgrafiken bleiben erhalten.
 - Keine externen Bibliotheken oder Telemetrie.
+- Ladeschutz gegen weiße Flächen beim Seitenaufbau und bei internen Seitenwechseln.
+- Feldüberschriften ohne weiße Querstreifen, dunkle Tabellen-Fußleisten und Auswahlfelder.
+- Dunkle Schraffur für fehlende WLAN-Messwerte und lesbarere Diagrammachsen.
 
 Direkt geprüft mit Chrome/Tampermonkey auf einer FRITZ!Box 7590 AX mit FRITZ!OS 8.40-137813 BETA. Andere Versionen und Script-Manager sind nicht zugesichert.
 

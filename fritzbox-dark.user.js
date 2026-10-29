@@ -26,6 +26,7 @@
     const KEY = 'fritzbox-dark-mode-v3';
     const MARK = 'data-fbdm-v3';
     const UI_ID = 'fbdm-v3-switch';
+    const PENDING = 'data-fbdm-pending';
     const HTML_NS = 'http://www.w3.org/1999/xhtml';
     if (window.__fbdmV3Installed) return;
     window.__fbdmV3Installed = true;
@@ -38,6 +39,7 @@
     const roots = new Map();
     const ids = new WeakMap();
     const owned = new WeakSet();
+    const pendingElements = new Set();
 
     const baseCSS = `
         :root, :host {
@@ -77,10 +79,16 @@
             --color-border: #39495b !important;
         }
         html, body { background-color: #111720 !important; color: #dce5ef !important; }
+        main#js3ContentBox, .js3-view, .js3-view__container {
+            background-color:#151d27!important; color:#dce5ef!important;
+        }
         :focus-visible { outline: 2px solid #85c7ff !important; outline-offset: 2px; }
         ::selection { background-color: #32618a !important; color: #fff !important; }
         input, select, textarea { color-scheme: dark !important; }
         input[type="checkbox"], input[type="radio"], progress { accent-color: #66b5ff; }
+        input[type="checkbox"], input[type="radio"] {
+            appearance:auto!important; background-image:none!important; background-color:transparent!important;
+        }
         input::placeholder, textarea::placeholder { color: #99a8ba !important; opacity: 1; }
         a[href]:not([role="button"]) { color: #8ccaff; }
     `;
@@ -117,6 +125,18 @@
         input:disabled, textarea:disabled, select:disabled { color:#91a2b7!important; background-color:#202833!important; }
         input::placeholder, textarea::placeholder { color:#99a8ba!important; }
         .network-topology__ip-address, .network-topology__mesh-master { color:#afc1d5!important; }
+        .js3-input__container { background-color:#172333!important; }
+        .js3-input__small-label {
+            background-image:none!important; background-color:#172333!important; color:#b3c7dd!important;
+        }
+        .wctbl .wctbl__footer::after {
+            background:linear-gradient(transparent,rgba(21,29,39,.98) 10%)!important;
+        }
+        .heatNoData {
+            background-image:repeating-linear-gradient(45deg,#263445,#263445 3px,#344558 0,#344558 6px)!important;
+        }
+        .page-blocks__block--chart canvas { filter:brightness(1.35); }
+        [data-fbdm-pending], [data-fbdm-pending] * { visibility:hidden!important; }
     `;
 
     function isOurs(node) {
@@ -125,7 +145,7 @@
 
     function schedule() {
         if (!enabled || timer) return;
-        timer = window.setTimeout(() => { timer = 0; refresh(); }, 140);
+        timer = window.setTimeout(() => { timer = 0; refresh(); }, 32);
     }
 
     function makeStyle(root, text) {
@@ -139,9 +159,28 @@
 
     function register(root) {
         if (roots.has(root)) return;
-        const state = { base: null, patches: null, finish: null, observer: null, connected: false };
+        const state = { base: null, patches: null, finish: null, guard: null,
+            observer: null, connected: false, ready: false };
         roots.set(root, state);
         state.observer = new MutationObserver(records => {
+            // Noch im selben Microtask dunkle Basis und Ladeschutz herstellen,
+            // bevor der Browser neu eingebaute Oberflächen zeichnen kann.
+            ensureStyles(root, state);
+            for (const record of records) {
+                if (isOurs(record.target)) continue;
+                for (const node of record.addedNodes) {
+                    if (node.nodeType !== 1 || isOurs(node)) continue;
+                    if (node.shadowRoot) register(node.shadowRoot);
+                    discover(node);
+                    if (enabled && state.ready && /^(DIV|SECTION|ARTICLE|TABLE|MAIN|DIALOG|JS3-VIEW)$/.test(node.tagName)) {
+                        const rect = node.getBoundingClientRect();
+                        if (rect.width >= 160 && rect.height >= 40) {
+                            node.setAttribute(PENDING, '');
+                            pendingElements.add(node);
+                        }
+                    }
+                }
+            }
             if (records.some(record => {
                 if (isOurs(record.target)) return false;
                 if (record.type === 'attributes') return true;
@@ -162,9 +201,16 @@
 
     function ensureStyles(root, state) {
         if (root === document && !document.documentElement) return;
+        const replaced = !state.base || state.base.getRootNode() !== root;
+        if (replaced) state.ready = false;
         if (!state.base || state.base.getRootNode() !== root) state.base = makeStyle(root, baseCSS);
         if (!state.patches || state.patches.getRootNode() !== root) state.patches = makeStyle(root, '');
         if (!state.finish || state.finish.getRootNode() !== root) state.finish = makeStyle(root, finishCSS);
+        if (!state.guard || state.guard.getRootNode() !== root) {
+            state.guard = makeStyle(root, root === document
+                ? 'body{visibility:hidden!important}' : ':host,:host *{visibility:hidden!important}');
+        }
+        state.guard.disabled = !enabled || state.ready;
     }
 
     // Den ursprünglichen Aufruf unverändert weiterreichen. Auch geschlossene,
@@ -225,6 +271,8 @@
                     state.base?.remove();
                     state.patches?.remove();
                     state.finish?.remove();
+                    state.guard?.remove();
+                    root.removeEventListener('load', schedule, true);
                     roots.delete(root);
                     continue;
                 }
@@ -273,7 +321,7 @@
                     const s = snapshot(el);
                     const props = [];
                     const bg = surface(s.bg);
-                    if (!svgText && bg && s.image === 'none' && !/^(HTML|BODY)$/.test(el.tagName)) {
+                    if (!svgText && bg && !/^(HTML|BODY)$/.test(el.tagName)) {
                         props.push(`background-color:${bg}!important`);
                     }
                     const preserveText = coloredSurface(el);
@@ -301,7 +349,11 @@
                 if (state.base) state.base.disabled = !enabled;
                 if (state.patches) state.patches.disabled = !enabled;
                 if (state.finish) state.finish.disabled = !enabled;
+                state.ready = true;
+                if (state.guard) state.guard.disabled = true;
             }
+            for (const el of pendingElements) el.removeAttribute(PENDING);
+            pendingElements.clear();
         }
         mountButton();
     }
@@ -320,6 +372,11 @@
             if (state.base) state.base.disabled = !enabled;
             if (state.patches) state.patches.disabled = !enabled;
             if (state.finish) state.finish.disabled = !enabled;
+            if (state.guard) state.guard.disabled = true;
+        }
+        if (!enabled) {
+            for (const el of pendingElements) el.removeAttribute(PENDING);
+            pendingElements.clear();
         }
         updateButton();
         if (enabled) refresh();

@@ -21,6 +21,8 @@ Hinweis für frühe Tester: Die erste Veröffentlichung wurde kurzzeitig als 3.2
 - Dunkle Kopfzeile, Navigation, Karten, Tabellen, Eingabefelder und Reiter.
 - Unterstützung für offene sowie nach Script-Start erfasste geschlossene Shadow Roots.
 - Nachgeladene Ansichten und neu erstellte Komponenten werden berücksichtigt.
+- Dunkle Ladeflächen ab Seitenstart; neue Komponenten werden erst nach ihrer Farbanpassung eingeblendet.
+- Lesbare Feldüberschriften ohne weiße Querstreifen, dunkle Tabellen-Fußleisten und Schraffuren für fehlende WLAN-Messwerte.
 - Farbige Statusanzeigen, Verbindungslinien und Gerätebilder bleiben erhalten.
 - Helle und dunkle Ansicht lassen sich ohne Neuladen umschalten.
 - Keine externen Bibliotheken, Werbung oder Telemetrie.
@@ -41,7 +43,9 @@ Nur die tatsächlich verwendete Router-Adresse ergänzen.
 
 Direkt in Chrome mit Tampermonkey auf einer **FRITZ!Box 7590 AX, FRITZ!OS 8.40-137813 BETA** geprüft: Übersicht, Navigation und Mesh-Reiter. Andere Modelle und FRITZ!OS-Versionen können weitere Anpassungen benötigen. Firefox, Greasemonkey und andere Script-Manager wurden nicht praktisch geprüft; insbesondere die Ausführung im Seitenkontext kann sich unterscheiden.
 
-Bereits vor Script-Start erzeugte geschlossene Shadow Roots sind nachträglich nicht erreichbar. Bilder und Verbindungsgrafiken werden nicht invertiert. Inline-Farben mit '!important' können Vorrang haben. Ein kurzer heller Seitenaufbau kann je nach Script-Manager und Ladezeit auftreten.
+Bereits vor Script-Start erzeugte geschlossene Shadow Roots sind nachträglich nicht erreichbar. Bilder und Verbindungsgrafiken werden nicht invertiert. Inline-Farben mit '!important' können Vorrang haben. Falls der Script-Manager erst nach dem ersten Browserbild startet, kann das Script dieses frühere Bild nicht beeinflussen. Der Ladeschutz greift ab seiner Ausführung und auch bei internen Seitenwechseln.
+
+Canvas-Diagramme im Online-Monitor werden leicht aufgehellt, damit ihre fest eingezeichneten Achsen lesbarer sind. Messwerte und Diagrammstruktur bleiben gleich.
 
 Der generische Farbfallback liest bei Änderungen die berechneten Farben und ergänzt eigene Styles. Sehr große oder häufig aktualisierte Ansichten können dadurch zusätzlichen Aufwand im Browser verursachen.
 
