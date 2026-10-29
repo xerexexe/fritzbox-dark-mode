@@ -1,5 +1,7 @@
 FRITZ!Box Dark Mode 3.2.1 ist die erste öffentliche Ausgabe.
 
+[Auf Greasy Fork installieren](https://greasyfork.org/de/scripts/602848-fritz-box-dark-mode-shadow-dom). Code und Beschreibung werden dort automatisch aus GitHub synchronisiert.
+
 - Dunkle Kopfzeile, Navigation, Karten, Tabellen, Eingabefelder und Reiter.
 - Unterstützung für Shadow-DOM-Komponenten und nachgeladene Ansichten.
 - Umschalter unten rechts mit lokal gespeicherter Auswahl.

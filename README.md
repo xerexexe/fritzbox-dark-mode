@@ -7,10 +7,10 @@ Dunkle Oberflächen für die FRITZ!Box-Weboberfläche, einschließlich der gekap
 ## Installation
 
 1. Tampermonkey im Browser installieren.
-2. [Userscript installieren](https://raw.githubusercontent.com/xerexexe/fritzbox-dark-mode/main/fritzbox-dark.user.js).
+2. [Userscript über Greasy Fork installieren](https://greasyfork.org/de/scripts/602848-fritz-box-dark-mode-shadow-dom).
 3. Ältere oder andere Dark-Mode-Scripts für dieselbe Seite deaktivieren und die FRITZ!Box-Seite neu laden.
 
-Falls der Browser die Datei nur als Text anzeigt, ihren vollständigen Inhalt in ein neues Tampermonkey-Script einfügen und speichern.
+Alternativ ist die [Installation direkt aus GitHub](https://raw.githubusercontent.com/xerexexe/fritzbox-dark-mode/main/fritzbox-dark.user.js) möglich. Falls der Browser die Datei nur als Text anzeigt, ihren vollständigen Inhalt in ein neues Tampermonkey-Script einfügen und speichern.
 
 Unten rechts schaltet **Dunkel / Hell** die Ansicht um. Die Auswahl wird lokal für die jeweilige Router-Adresse gespeichert. Die Installation aus GitHub prüft Updates über die Metadatei dieses Repositorys. Bei Installation über Greasy Fork übernimmt Greasy Fork die Updates.
 
@@ -57,7 +57,7 @@ Bitte [ein Issue öffnen](https://github.com/xerexexe/fritzbox-dark-mode/issues)
 
 Die ausführbare Quelle steht in 'fritzbox-dark.user.js'. Bei Updates die Version erhöhen und den Metadatenblock identisch nach 'fritzbox-dark.meta.js' übernehmen. Änderungen und Prüfergebnisse im Changelog dokumentieren.
 
-Die Datei 'greasyfork-description.html' enthält die vorbereitete Beschreibung für Greasy Fork. Dort kann dieselbe Quelle aus dem 'main'-Branch synchronisiert werden. Es wird der vollständige, lesbare Script-Code veröffentlicht, kein externer Loader.
+Die Datei 'greasyfork-description.html' enthält die Beschreibung für Greasy Fork. [Die veröffentlichte Greasy-Fork-Seite](https://greasyfork.org/de/scripts/602848-fritz-box-dark-mode-shadow-dom) synchronisiert Code und Beschreibung automatisch aus dem 'main'-Branch dieses Repositorys. Es wird der vollständige, lesbare Script-Code veröffentlicht, kein externer Loader.
 
 Lokale Browserprüfungen deckten Dokumentstart, neutrale Flächen und Texte, Statusfarben, SVG-Linien, offene/geschlossene/verschachtelte/später erzeugte Shadow Roots, ersetzte Komponenten-Inhalte, Klassenwechsel, eingebettete Seiten, Umschalter, gespeicherte Auswahl und Beobachter-Stabilität ab. Ein weiterer Test prüfte die aus FRITZ!OS gelesenen Selektoren und Pseudoelemente.
 
