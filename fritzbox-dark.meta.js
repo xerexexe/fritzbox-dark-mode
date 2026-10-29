@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         FRITZ!Box Dark Mode – Shadow DOM
 // @namespace    local.fritzbox.darkmode
-// @version      3.2.1
+// @version      1.0.0
 // @description  Dunkle Oberflächen, auch in Web-Komponenten. Mit Schalter und ohne externe Bibliotheken.
 // @match        *://fritz.box/*
 // @match        *://*.fritz.box/*

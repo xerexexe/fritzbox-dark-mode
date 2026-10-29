@@ -2,7 +2,7 @@
 
 Dunkle Oberflächen für die FRITZ!Box-Weboberfläche, einschließlich der gekapselten Web-Komponenten moderner FRITZ!OS-Versionen.
 
-**Version 3.2.1 · MIT-Lizenz · Community-Projekt**
+**Version 1.0.0 · MIT-Lizenz · Community-Projekt**
 
 ## Installation
 
@@ -13,6 +13,8 @@ Dunkle Oberflächen für die FRITZ!Box-Weboberfläche, einschließlich der gekap
 Alternativ ist die [Installation direkt aus GitHub](https://raw.githubusercontent.com/xerexexe/fritzbox-dark-mode/main/fritzbox-dark.user.js) möglich. Falls der Browser die Datei nur als Text anzeigt, ihren vollständigen Inhalt in ein neues Tampermonkey-Script einfügen und speichern.
 
 Unten rechts schaltet **Dunkel / Hell** die Ansicht um. Die Auswahl wird lokal für die jeweilige Router-Adresse gespeichert. Die Installation aus GitHub prüft Updates über die Metadatei dieses Repositorys. Bei Installation über Greasy Fork übernimmt Greasy Fork die Updates.
+
+Hinweis für frühe Tester: Die erste Veröffentlichung wurde kurzzeitig als 3.2.1 angeboten. Diese Nummer stammte aus der Entwicklung und wurde auf 1.0.0 berichtigt. Bereits installierte 3.2.x-Kopien einmal durch 1.0.0 ersetzen, damit spätere 1.x-Updates erkannt werden. Die Darstellung bleibt gleich.
 
 ## Funktionen
 

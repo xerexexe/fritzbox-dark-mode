@@ -1,13 +1,10 @@
 # Änderungen
 
-## 3.2.1 — 2026-10-29
+## 1.0.0 — 2026-10-29
 
-- Erste öffentliche Ausgabe für GitHub und Greasy Fork vorbereitet.
-- Lizenz, Autorenangabe, Support- und Updateadressen sowie englische Kurzbeschreibung ergänzt.
-- README und Veröffentlichungsbeschreibung ergänzt. Darstellung gegenüber der praktisch geprüften Version 3.2.0 unverändert.
-
-## 3.2.0 — 2026-10-29
-
-- Kopfzeile, Navigationsverläufe, Kartenüberschriften, Reiter und Linkkontraste anhand der echten FRITZ!OS-Oberfläche korrigiert.
-- Weiße Beschriftungen auf primären Schaltflächen und in der Mesh-Grafik erhalten.
-- Öffentliche Quelle enthält die vollständigen Korrektur-Styles.
+- Erste öffentliche Ausgabe auf GitHub und Greasy Fork.
+- Dunkle Kopfzeile, Navigation, Karten, Tabellen, Eingabefelder und Reiter.
+- Unterstützung für Shadow-DOM-Komponenten und nachgeladene Ansichten.
+- Umschalter mit lokal gespeicherter Auswahl.
+- Statusfarben, Verbindungslinien und Gerätebilder bleiben erhalten.
+- Lizenz, Anleitung, Support- und Updateadressen enthalten.

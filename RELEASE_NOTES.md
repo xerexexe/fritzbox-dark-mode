@@ -1,4 +1,4 @@
-FRITZ!Box Dark Mode 3.2.1 ist die erste öffentliche Ausgabe.
+FRITZ!Box Dark Mode 1.0.0 ist die erste öffentliche Ausgabe.
 
 [Auf Greasy Fork installieren](https://greasyfork.org/de/scripts/602848-fritz-box-dark-mode-shadow-dom). Code und Beschreibung werden dort automatisch aus GitHub synchronisiert.
 
@@ -10,4 +10,4 @@ FRITZ!Box Dark Mode 3.2.1 ist die erste öffentliche Ausgabe.
 
 Direkt geprüft mit Chrome/Tampermonkey auf einer FRITZ!Box 7590 AX mit FRITZ!OS 8.40-137813 BETA. Andere Versionen und Script-Manager sind nicht zugesichert.
 
-Die Darstellung entspricht der geprüften Version 3.2.0; 3.2.1 ergänzt Veröffentlichungsmetadaten und Dokumentation.
+Frühe 3.2.x-Testkopien einmal durch diese Fassung ersetzen, damit spätere 1.x-Updates erkannt werden. Die Darstellung bleibt gleich.
