@@ -281,13 +281,9 @@
             ensureStyles(root, state);
         }
 
-        // Originalfarben messen, ohne eigene Regeln erneut als Eingang zu nehmen.
-        // Alles passiert synchron; zwischen Aus- und Einschalten wird nicht gezeichnet.
-        for (const state of roots.values()) {
-            if (state.base) state.base.disabled = true;
-            if (state.patches) state.patches.disabled = true;
-            if (state.finish) state.finish.disabled = true;
-        }
+        // Die dunklen Styles niemals zur Messung abschalten: neue Ansichten
+        // dürfen auch während einer Layout-Aktualisierung nicht weiß werden.
+        // Nur die eigene Farbmarkierung des jeweils gemessenen Elements lösen.
         const cache = new WeakMap();
         const backgroundCache = new WeakMap();
         function snapshot(el) {
@@ -318,8 +314,17 @@
                     const svgText = el.namespaceURI !== HTML_NS && el.localName === 'text';
                     // Keine Linien, Gerätebilder, Diagrammflächen oder Statussymbole umfärben.
                     if (el.namespaceURI !== HTML_NS && !svgText) continue;
+                    const oldMark = el.getAttribute(MARK);
+                    const wasPending = el.hasAttribute(PENDING);
+                    if (oldMark !== null) {
+                        el.setAttribute(PENDING, '');
+                        el.removeAttribute(MARK);
+                    }
+                    cache.delete(el);
+                    let props;
+                    try {
                     const s = snapshot(el);
-                    const props = [];
+                    props = [];
                     const bg = surface(s.bg);
                     if (!svgText && bg && !/^(HTML|BODY)$/.test(el.tagName)) {
                         props.push(`background-color:${bg}!important`);
@@ -332,6 +337,10 @@
                     if (!svgText) s.borders.forEach((color, i) => {
                         if (neutral(color) && color.light > 95) props.push(`border-${['top', 'right', 'bottom', 'left'][i]}-color:#39495b!important`);
                     });
+                    } finally {
+                        if (oldMark !== null) el.setAttribute(MARK, oldMark);
+                        if (!wasPending) el.removeAttribute(PENDING);
+                    }
                     if (!props.length) continue;
                     if (!ids.has(el)) ids.set(el, String(++serial));
                     const id = ids.get(el);
@@ -342,7 +351,16 @@
                 pending.push([state, css]);
             }
             for (const [state, css] of pending) {
-                if (state.patches.textContent !== css) state.patches.textContent = css;
+                if (state.patches.textContent !== css) {
+                    // Erst die neue Regelmenge hinzufügen, dann die alte entfernen.
+                    // So gibt es auch beim Austausch keinen ungestalteten Zwischenstand.
+                    const replacement = document.createElement('style');
+                    owned.add(replacement);
+                    replacement.textContent = css;
+                    state.patches.before(replacement);
+                    state.patches.remove();
+                    state.patches = replacement;
+                }
             }
         } finally {
             for (const state of roots.values()) {
