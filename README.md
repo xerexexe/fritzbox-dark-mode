@@ -4,6 +4,9 @@ Dunkle Oberflächen für die FRITZ!Box-Weboberfläche, einschließlich der gekap
 
 **Version 1.0.0 · MIT-Lizenz · Community-Projekt**
 
+[![Greasy Fork installs](https://img.shields.io/greasyfork/dt/602848?label=Greasy%20Fork%20installs)](https://greasyfork.org/de/scripts/602848-fritz-box-dark-mode-shadow-dom/stats)
+[![GitHub release downloads](https://img.shields.io/github/downloads/xerexexe/fritzbox-dark-mode/total?label=GitHub%20release%20downloads)](https://github.com/xerexexe/fritzbox-dark-mode/releases)
+
 ## Installation
 
 1. Tampermonkey im Browser installieren.
