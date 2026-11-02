@@ -1,0 +1,50 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Lokaler Performance-Test 1.1.1</title>
+<script>
+const closedRoots=new WeakMap(), originalAttach=Element.prototype.attachShadow;
+Element.prototype.attachShadow=function(...args){const root=Reflect.apply(originalAttach,this,args);closedRoots.set(this,root);return root;};
+let reads=0;const readStyle=window.getComputedStyle.bind(window);
+window.getComputedStyle=(...args)=>{reads++;return readStyle(...args)};
+</script>
+<script src="/fritzbox-dark.user.js"></script>
+<style id="fixture">body{font:16px system-ui;background:white;color:#333;padding:24px}.row{background:white;color:#333;border:1px solid #ddd}.surface{background:#eee;color:#555}.red{background:rgb(180,30,30);color:white}.new-surface{background:white}.counter{background:transparent}#items{position:absolute;left:-2000px;width:300px}pre{white-space:pre-wrap}button{padding:12px}</style></head><body>
+<h1>Lokaler Performance-Test 1.1.1</h1><p>Belastungstest mit 12.000 Elementen. Keine Routerdaten und keine Veröffentlichung.</p>
+<button id="run">Tests starten</button><pre id="result">Bereit.</pre><div id="items"></div>
+<script>
+const result=document.querySelector('#result'),items=document.querySelector('#items');
+const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const dark=el=>{const c=readStyle(el).backgroundColor.match(/[\d.]+/g)?.map(Number);return c&&c[0]<100&&c[1]<100&&c[2]<100};
+async function until(fn,ms=10000){const start=performance.now();while(!fn()){if(performance.now()-start>ms)throw Error('Zeitlimit');await frame()}}
+const checks=[],metrics={};
+function check(name,ok){checks.push((ok?'✓ ':'✗ ')+name);if(!ok)throw Error(name)}
+async function test(){
+document.querySelector('#run').disabled=true;checks.length=0;
+let ticker=0;const heartbeat=setInterval(()=>ticker++,10);
+let bright=0,watch=true;const seen=[];
+function capture(){if(watch){for(const el of seen){if(!el.isConnected)continue;const s=readStyle(el);if(s.visibility!=='hidden'&&s.opacity!=='0'&&s.backgroundColor.match(/rgb\(2[0-9]{2}, 2[0-9]{2}, 2[0-9]{2}\)/))bright++;}requestAnimationFrame(capture)}}requestAnimationFrame(capture);
+try{
+await until(()=>!!document.querySelector('#fbdm-v3-switch')&&!document.querySelector('[data-fbdm-pending]'));
+const fragment=document.createDocumentFragment();for(let i=0;i<4000;i++){const row=document.createElement('section');row.className='row';row.innerHTML='<div class="surface">Fläche</div><span class="counter">0</span>';fragment.append(row)}
+reads=0;const start=performance.now(),ticks=ticker;items.append(fragment);seen.push(items.firstElementChild);
+await until(()=>!items.hasAttribute('data-fbdm-pending')&&items.lastElementChild?.hasAttribute('data-fbdm-v3'));
+metrics.initialMs=Math.round(performance.now()-start);metrics.initialReads=reads;metrics.timerTicks=ticker-ticks;
+check('12.000 Elemente fertig und dunkel',dark(items.firstElementChild)&&dark(items.lastElementChild));
+check('Browser-Timer laufen während der Arbeit weiter',metrics.timerTicks>5);
+await pause(100);reads=0;await pause(250);metrics.idleReads=reads;check('Keine Farbprüfungen im Leerlauf',reads===0);
+reads=0;for(let i=0;i<100;i++){items.firstElementChild.dispatchEvent(new MouseEvent('pointerover',{bubbles:true}));items.firstElementChild.dispatchEvent(new MouseEvent('pointerout',{bubbles:true}))}await pause(100);metrics.pointerReads=reads;check('200 Mausereignisse ohne Farbprüfung',reads===0);
+reads=0;const counter=items.querySelector('.counter');for(let i=0;i<20;i++){counter.firstChild.data=String(i);await pause(3)}await pause(80);metrics.textReads=reads;check('20 laufende Textänderungen ohne Farbprüfung',reads===0);
+reads=0;const one=items.querySelector('.surface');one.style.backgroundColor='rgb(245,245,245)';seen.push(one);await frame();await until(()=>!one.hasAttribute('data-fbdm-pending'));metrics.singleReads=reads;check('Einzelfläche bleibt dunkel',dark(one));check('Einzeländerung prüft weniger als 20 statt 12.000 Elemente',reads<20);
+const fresh=document.createElement('div');fresh.textContent='zuerst transparent';items.append(fresh);await frame();await until(()=>!fresh.hasAttribute('data-fbdm-pending'));seen.push(fresh);fresh.className='new-surface';await frame();await until(()=>!fresh.hasAttribute('data-fbdm-pending'));check('Transparente Fläche nach Klassenwechsel dunkel',dark(fresh));
+for(const mode of ['open','closed']){const host=document.createElement('article');items.append(host);const root=host.attachShadow({mode});root.innerHTML='<style>.sample{background:white;color:#333}</style><section class="sample">Test</section>';const el=root.querySelector('section');seen.push(el);await until(()=>dark(el)&&readStyle(el).visibility!=='hidden');check(mode+' Shadow Root dunkel',dark(el));root.innerHTML='<style>.sample{background:#eee;color:#444}</style><section class="sample">Neu</section>';const replacement=root.querySelector('section');seen.push(replacement);await until(()=>dark(replacement)&&readStyle(replacement).visibility!=='hidden');check(mode+' Shadow-Inhalt ersetzt',dark(replacement))}
+// Exercise a full stylesheet update on the large document: still yield between batches.
+const late=document.createElement('style');late.textContent='.new-surface{background:#eee}';document.head.append(late);await pause(30);await until(()=>readStyle(document.body).visibility!=='hidden');check('Nachgeladenes CSS fertig und dunkel',dark(fresh));
+late.firstChild.data='.new-surface{background:white;color:#222}';await pause(30);await until(()=>readStyle(document.body).visibility!=='hidden');check('Stylesheet-Textänderung fertig und dunkel',dark(fresh));
+const status=document.createElement('div');status.className='red';items.append(status);await frame();await until(()=>!status.hasAttribute('data-fbdm-pending'));check('Statusfarbe erhalten',readStyle(status).backgroundColor==='rgb(180, 30, 30)');
+check('Keine sichtbaren hellen Testflächen',bright===0);
+const toggle=closedRoots.get(document.querySelector('#fbdm-v3-switch')).querySelector('button');watch=false;toggle.click();await frame();check('Hell-Modus wiederhergestellt',!dark(document.body));toggle.click();await until(()=>readStyle(document.body).visibility!=='hidden');check('Dunkel-Modus wiederhergestellt',dark(document.body));
+items.replaceChildren();await pause(200);reads=0;await pause(200);check('Nach Entfernen großer Ansicht wieder im Leerlauf',reads===0);
+result.textContent='BESTANDEN: '+checks.length+' Prüfungen\n'+JSON.stringify(metrics,null,2)+'\n\n'+checks.join('\n');
+}catch(error){result.textContent='FEHLER: '+error.message+'\n'+JSON.stringify(metrics,null,2)+'\n'+checks.join('\n')+'\nHelle Frames: '+bright}finally{watch=false;clearInterval(heartbeat);document.querySelector('#run').disabled=false}
+}
+document.querySelector('#run').onclick=test;
+</script></body></html>

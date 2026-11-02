@@ -2,7 +2,7 @@
 
 Dunkle Oberflächen für die FRITZ!Box-Weboberfläche, einschließlich der gekapselten Web-Komponenten moderner FRITZ!OS-Versionen.
 
-**Version 1.1.0 · MIT-Lizenz · Community-Projekt**
+**Version 1.1.2 · MIT-Lizenz · Community-Projekt**
 
 [![Greasy Fork installs](https://img.shields.io/greasyfork/dt/602848?label=Greasy%20Fork%20installs)](https://greasyfork.org/de/scripts/602848-fritz-box-dark-mode-shadow-dom/stats)
 [![GitHub release downloads](https://img.shields.io/github/downloads/xerexexe/fritzbox-dark-mode/total?label=GitHub%20release%20downloads)](https://github.com/xerexexe/fritzbox-dark-mode/releases)
@@ -28,8 +28,10 @@ Hinweis für frühe Tester: Die erste Veröffentlichung wurde kurzzeitig als 3.2
 - Unterstützung für offene sowie nach Script-Start erfasste geschlossene Shadow Roots.
 - Nachgeladene Ansichten und neu erstellte Komponenten werden berücksichtigt.
 - Dunkle Ladeflächen ab Seitenstart; neue Komponenten werden erst nach ihrer Farbanpassung eingeblendet.
-- Farbänderungen durch Klassen, Inline-Styles und Stylesheet-Text werden vor dem nächsten Bildaufbau verarbeitet. Die dunkle Dokumentbasis übersteht auch einen ausgetauschten Seitenkopf.
+- Geänderte Bereiche werden gezielt und in begrenzten Portionen eingefärbt. Mausbewegungen und gewöhnliche Änderungen laufender Textanzeigen lösen keine vollständigen Farbprüfungen aus.
+- Die dunkle Dokumentbasis übersteht einen ausgetauschten Seitenkopf. Neue Flächen werden während ihrer Farbanpassung vorübergehend ausgeblendet.
 - Lesbare Feldüberschriften ohne weiße Querstreifen, dunkle Tabellen-Fußleisten und Schraffuren für fehlende WLAN-Messwerte.
+- Dunkle Dialogköpfe, Dialogfußleisten und Schatten ohne weiße Streifen.
 - Farbige Statusanzeigen, Verbindungslinien und Gerätebilder bleiben erhalten.
 - Helle und dunkle Ansicht lassen sich ohne Neuladen umschalten.
 - Keine externen Bibliotheken, Werbung oder Telemetrie.
@@ -54,7 +56,7 @@ Bereits vor Script-Start erzeugte geschlossene Shadow Roots sind nachträglich n
 
 Canvas-Diagramme im Online-Monitor werden leicht aufgehellt, damit ihre fest eingezeichneten Achsen lesbarer sind. Messwerte und Diagrammstruktur bleiben gleich.
 
-Der generische Farbfallback liest bei Änderungen die berechneten Farben und ergänzt eigene Styles. Sehr große oder häufig aktualisierte Ansichten können dadurch zusätzlichen Aufwand im Browser verursachen.
+Der generische Farbfallback prüft betroffene Teilbäume, bündelt Messungen und verwendet gemeinsame CSS-Regeln für gleiche Farbkombinationen. Große Änderungen werden auf mehrere Animationsframes mit höchstens 200 Elementen pro Durchlauf verteilt. Sehr große Ansichten benötigen deshalb mehrere Bilder bis zur vollständigen Einfärbung.
 
 ## Datenschutz
 
@@ -74,7 +76,11 @@ Die Datei 'greasyfork-description.html' enthält die Beschreibung für Greasy Fo
 
 Lokale Browserprüfungen deckten Dokumentstart, neutrale Flächen und Texte, Statusfarben, SVG-Linien, offene/geschlossene/verschachtelte/später erzeugte Shadow Roots, ersetzte Komponenten-Inhalte, Klassenwechsel, eingebettete Seiten, Umschalter, gespeicherte Auswahl und Beobachter-Stabilität ab. Ein weiterer Test prüfte die aus FRITZ!OS gelesenen Selektoren und Pseudoelemente.
 
-Für 1.1.0 wurde zusätzlich ein Ladeblitz beim Klassenwechsel einer bereits vorhandenen transparenten Fläche reproduziert: 1.0.0 zeigte am folgenden Animationsframe eine helle Fläche. Die korrigierte Fassung bestand 66 lokale Browserprüfungen, darunter Änderungen an Stylesheet-Text, nachgeladene CSS-Dateien, einen ausgetauschten Seitenkopf und den Hell-/Dunkel-Schalter; 76 beobachtete Animationsframes enthielten keine hellen Testflächen. Diese Prüfung ersetzt keinen Test jeder FRITZ!OS-Ansicht.
+1.1.2 behebt die Blockaden der Version 1.1.0 bei häufigen Seitenereignissen. Der lokale Belastungstest bestand 19 Prüfungen mit 12.000 Elementen: Browser-Timer liefen während des Aufbaus weiter; im Leerlauf, bei Mausereignissen und laufenden Textänderungen fanden keine Farbprüfungen statt. Eine Einzeländerung las nur eine Elementdarstellung aus. Die Bedienbarkeit wurde außerdem auf der echten FRITZ!Box bestätigt.
+
+14 zusätzliche Dialogprüfungen decken offene und geschlossene Shadow Roots, eigene Schattenvariablen am Dialogcontainer, unveränderte Schattenabmessungen und die Hell-/Dunkel-Umschaltung ab. Die korrigierten Schatten wurden im Originaldialog auf der FRITZ!Box geprüft. Diese Prüfungen ersetzen keinen Test jeder FRITZ!OS-Ansicht.
+
+Die reproduzierbaren Prüfseiten liegen in `tests/`. Mit `node tests/serve.mjs` starten und dann `http://127.0.0.1:8766/` für den Belastungstest oder `http://127.0.0.1:8766/dialog` für den Dialogtest öffnen. Die Testdialoge haben keine Routerfunktion.
 
 ## Lizenz
 

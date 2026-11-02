@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         FRITZ!Box Dark Mode – Shadow DOM
 // @namespace    local.fritzbox.darkmode
-// @version      1.1.0
+// @version      1.1.2
 // @description  Dunkle Oberflächen, auch in Web-Komponenten. Mit Schalter und ohne externe Bibliotheken.
 // @match        *://fritz.box/*
 // @match        *://*.fritz.box/*
@@ -33,11 +33,9 @@
 
     let enabled = true;
     try { enabled = localStorage.getItem(KEY) !== 'off'; } catch (_) { /* Storage kann gesperrt sein. */ }
-    let scheduled = false;
     let serial = 0;
     let button;
     const roots = new Map();
-    const ids = new WeakMap();
     const owned = new WeakSet();
     const pendingElements = new Set();
     // A constructed sheet also exists before <html> is parsed and survives head replacement.
@@ -85,6 +83,7 @@
             --color-text-base: #e4e7ec !important;
             --color-text-subtle: #a8afb9 !important;
             --color-border: #3b4048 !important;
+            --content-shadow: 0 -.25rem .5rem 1rem #1b1d20 !important;
         }
         html, body { background-color: #141517 !important; color: #e4e7ec !important; }
         main#js3ContentBox, .js3-view, .js3-view__container {
@@ -102,6 +101,14 @@
     `;
 
     const finishCSS = `
+        .dialog { --content-shadow:0 -.25rem .5rem 1rem #1b1d20!important; }
+        .dialog__header, .dialog .button-block.button-block--popover {
+            background-color:#1b1d20!important;
+            box-shadow:var(--content-shadow)!important;
+        }
+        .v-modal-view, .v-modal-view__header, .v-modal-view__footer {
+            background-color:#1b1d20!important; color:#e4e7ec!important;
+        }
         #blueBarBox { background-color:#1d1f23!important;
             background-image:none!important; border-color:#34383f!important; }
         #navigationMenu, .menuArea { background-image:none!important; background-color:#191b1e!important; }
@@ -151,15 +158,9 @@
         return owned.has(node) || owned.has(node.parentNode) || node.nodeType === 1 && node.id === UI_ID;
     }
 
+    let frame = 0;
     function schedule() {
-        if (!enabled || scheduled) return;
-        scheduled = true;
-        // MutationObserver and load callbacks finish before the next paint. A timer
-        // here would let changed classes and late stylesheets paint white first.
-        queueMicrotask(() => {
-            scheduled = false;
-            if (enabled) refresh();
-        });
+        if (enabled && !frame) frame = requestAnimationFrame(flush);
     }
 
     function makeStyle(root, text) {
@@ -171,54 +172,19 @@
         return style;
     }
 
-    function register(root) {
-        if (roots.has(root)) return;
-        const state = { base: null, patches: null, finish: null, guard: null,
-            observer: null, connected: false, ready: false };
-        roots.set(root, state);
-        state.observer = new MutationObserver(records => {
-            // Noch im selben Microtask dunkle Basis und Ladeschutz herstellen,
-            // bevor der Browser neu eingebaute Oberflächen zeichnen kann.
-            ensureStyles(root, state);
-            for (const record of records) {
-                if (isOurs(record.target)) continue;
-                for (const node of record.addedNodes) {
-                    if (node.nodeType !== 1 || isOurs(node)) continue;
-                    if (node.shadowRoot) register(node.shadowRoot);
-                    discover(node);
-                    if (enabled && state.ready && /^(DIV|SECTION|ARTICLE|TABLE|MAIN|DIALOG|JS3-VIEW)$/.test(node.tagName)) {
-                        const rect = node.getBoundingClientRect();
-                        if (rect.width >= 160 && rect.height >= 40) {
-                            node.setAttribute(PENDING, '');
-                            pendingElements.add(node);
-                        }
-                    }
-                }
-            }
-            if (records.some(record => {
-                if (isOurs(record.target)) return false;
-                if (record.type === 'attributes' || record.type === 'characterData') return true;
-                return [...record.addedNodes, ...record.removedNodes].some(node => !isOurs(node));
-            })) schedule();
-        });
-        state.observer.observe(root, {
-            childList: true, subtree: true, attributes: true, characterData: true,
-            attributeFilter: ['class', 'style', 'hidden', 'open', 'disabled', 'selected',
-                'aria-expanded', 'aria-selected', 'aria-checked', 'aria-disabled', 'value'],
-        });
-        ensureStyles(root, state);
-        root.addEventListener('load', schedule, true);
-        window.setTimeout(schedule, 350);
-        window.setTimeout(schedule, 1400);
-        schedule();
-    }
-
     function ensureStyles(root, state) {
         if (root === document && !document.documentElement) return;
-        const replaced = !state.base || state.base.getRootNode() !== root;
-        if (replaced) state.ready = false;
-        if (!state.base || state.base.getRootNode() !== root) state.base = makeStyle(root, baseCSS);
-        if (!state.patches || state.patches.getRootNode() !== root) state.patches = makeStyle(root, '');
+        if (!state.base || state.base.getRootNode() !== root) {
+            state.base = makeStyle(root, baseCSS);
+            state.ready = false;
+            state.full = true;
+        }
+        if (!state.patches || state.patches.getRootNode() !== root) {
+            state.patches = makeStyle(root, '');
+            state.entries.clear();
+            state.recipes.clear();
+            state.full = true;
+        }
         if (!state.finish || state.finish.getRootNode() !== root) state.finish = makeStyle(root, finishCSS);
         if (!state.guard || state.guard.getRootNode() !== root) {
             state.guard = makeStyle(root, root === document
@@ -227,8 +193,82 @@
         state.guard.disabled = !enabled || state.ready;
     }
 
-    // Den ursprünglichen Aufruf unverändert weiterreichen. Auch geschlossene,
-    // NACH Script-Start erzeugte Roots können so gestaltet werden.
+    function dirty(root, node) {
+        const state = roots.get(root);
+        if (!state || isOurs(node)) return;
+        state.targets.add(node);
+        if (enabled && node.nodeType === 1) {
+            node.setAttribute(PENDING, '');
+            pendingElements.add(node);
+        }
+        schedule();
+    }
+
+    function full(root) {
+        const state = roots.get(root);
+        if (!state) return;
+        state.full = true;
+        state.ready = false;
+        if (enabled && state.guard) state.guard.disabled = false;
+        schedule();
+    }
+
+    function invalidateAll() {
+        for (const root of roots.keys()) full(root);
+    }
+
+    function register(root) {
+        if (roots.has(root)) return;
+        const state = { base: null, patches: null, finish: null, guard: null,
+            observer: null, connected: false, ready: false, full: true,
+            targets: new Set(), queue: new Set(), entries: new Map(), recipes: new Map(), prune: false };
+        roots.set(root, state);
+        state.onLoad = event => {
+            if (event.target?.tagName === 'LINK' || event.target?.tagName === 'STYLE') full(root);
+        };
+        state.observer = new MutationObserver(records => {
+            ensureStyles(root, state);
+            for (const record of records) {
+                if (isOurs(record.target)) continue;
+                if (record.type === 'characterData') {
+                    // Live counters and ordinary text updates cannot change a surface's color.
+                    if (record.target.parentElement?.tagName === 'STYLE') full(root);
+                    continue;
+                }
+                if (record.type === 'attributes') {
+                    dirty(root, record.target);
+                    continue;
+                }
+                if (record.target.nodeName === 'STYLE') {
+                    full(root);
+                    continue;
+                }
+                for (const node of record.addedNodes) {
+                    if (node.nodeType !== 1 || isOurs(node)) continue;
+                    discover(node);
+                    if (node.matches('style,link[rel="stylesheet"]')) full(root);
+                    else dirty(root, node);
+                }
+                for (const node of record.removedNodes) {
+                    if (node.nodeType !== 1 || isOurs(node)) continue;
+                    state.prune = true;
+                    if (node.matches('style,link[rel="stylesheet"]')) full(root);
+                    schedule();
+                }
+            }
+            if (state.full) schedule();
+        });
+        state.observer.observe(root, {
+            childList: true, subtree: true, attributes: true, characterData: true,
+            attributeFilter: ['class', 'style', 'hidden', 'open', 'disabled', 'selected',
+                'aria-expanded', 'aria-selected', 'aria-checked', 'aria-disabled'],
+        });
+        ensureStyles(root, state);
+        root.addEventListener('load', state.onLoad, true);
+        discover(root);
+        schedule();
+    }
+
     const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'attachShadow');
     if (descriptor && typeof descriptor.value === 'function') {
         const original = descriptor.value;
@@ -237,10 +277,7 @@
                 ...descriptor,
                 value: function (...args) {
                     const root = Reflect.apply(original, this, args);
-                    if (this.id !== UI_ID) {
-                        // Erst nach der Initialisierung der Komponente Styles einsetzen.
-                        queueMicrotask(() => register(root));
-                    }
+                    if (this.id !== UI_ID) queueMicrotask(() => register(root));
                     return root;
                 },
             });
@@ -248,16 +285,13 @@
     }
 
     function discover(root) {
+        if (root.nodeType === 1 && root.id !== UI_ID && root.shadowRoot) register(root.shadowRoot);
         for (const el of root.querySelectorAll('*')) {
-            if (el.id !== UI_ID && el.shadowRoot && !roots.has(el.shadowRoot)) {
-                register(el.shadowRoot);
-                discover(el.shadowRoot);
-            }
+            if (el.id !== UI_ID && el.shadowRoot && !roots.has(el.shadowRoot)) register(el.shadowRoot);
         }
     }
 
     function parseColor(value) {
-        // getComputedStyle normalisiert normale CSS-Farben zu rgb()/rgba().
         const match = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+))?\s*\)$/.exec(value);
         if (!match) return null;
         const [r, g, b] = match.slice(1, 4).map(Number);
@@ -274,32 +308,25 @@
         return `rgba(${rgb.join(',')},${color.a})`;
     }
 
-    function refresh() {
-        if (!enabled || !document.documentElement) return;
-        discover(document);
-        for (const [root, state] of roots) {
-            if (root !== document) {
-                if (root.host.isConnected) state.connected = true;
-                else if (state.connected) {
-                    state.observer.disconnect();
-                    state.base?.remove();
-                    state.patches?.remove();
-                    state.finish?.remove();
-                    state.guard?.remove();
-                    root.removeEventListener('load', schedule, true);
-                    roots.delete(root);
-                    continue;
-                }
-                discover(root);
-            }
-            ensureStyles(root, state);
-        }
+    function eligible(el) {
+        return el.nodeType === 1 && !isOurs(el)
+            && !/^(SCRIPT|STYLE|LINK|META|HEAD|TEMPLATE|NOSCRIPT)$/.test(el.tagName)
+            && (el.namespaceURI === HTML_NS || el.localName === 'text');
+    }
 
-        // Die dunklen Styles niemals zur Messung abschalten: neue Ansichten
-        // dürfen auch während einer Layout-Aktualisierung nicht weiß werden.
-        // Nur die eigene Farbmarkierung des jeweils gemessenen Elements lösen.
+    function collect(state, node, root) {
+        if (node !== root && node.getRootNode() !== root) return;
+        if (eligible(node)) state.queue.add(node);
+        for (const el of node.querySelectorAll('*')) if (eligible(el)) state.queue.add(el);
+    }
+
+    function measure(state, elements) {
         const cache = new WeakMap();
-        const backgroundCache = new WeakMap();
+        const backgrounds = new WeakMap();
+        const previous = elements.map(el => el.getAttribute(MARK));
+        // Remove only this batch's color tokens, then read the whole batch.
+        // Share color rules instead of creating thousands of unique selectors.
+        for (const el of elements) if (el.hasAttribute(MARK)) el.removeAttribute(MARK);
         function snapshot(el) {
             if (cache.has(el)) return cache.get(el);
             const s = getComputedStyle(el);
@@ -311,83 +338,122 @@
         }
         function coloredSurface(el) {
             if (!el) return false;
-            if (backgroundCache.has(el)) return backgroundCache.get(el);
-            const data = snapshot(el);
-            const parent = el.parentElement || el.getRootNode().host;
-            const result = data.image !== 'none' || (data.bg && data.bg.a > 0.9
-                ? data.bg.chroma >= 42 && data.bg.light > 100 : coloredSurface(parent));
-            backgroundCache.set(el, result);
+            if (backgrounds.has(el)) return backgrounds.get(el);
+            const s = snapshot(el);
+            const result = s.image !== 'none' || (s.bg && s.bg.a > .9
+                ? s.bg.chroma >= 42 && s.bg.light > 100 : coloredSurface(el.parentElement || el.getRootNode().host));
+            backgrounds.set(el, result);
             return result;
         }
+        let values;
         try {
-            const pending = [];
-            for (const [root, state] of roots) {
-                const rules = [];
-                for (const el of root.querySelectorAll('*')) {
-                    if (isOurs(el) || /^(SCRIPT|STYLE|LINK|META|HEAD|TEMPLATE|NOSCRIPT)$/.test(el.tagName)) continue;
-                    const svgText = el.namespaceURI !== HTML_NS && el.localName === 'text';
-                    // Keine Linien, Gerätebilder, Diagrammflächen oder Statussymbole umfärben.
-                    if (el.namespaceURI !== HTML_NS && !svgText) continue;
-                    const oldMark = el.getAttribute(MARK);
-                    const wasPending = el.hasAttribute(PENDING);
-                    if (oldMark !== null) {
-                        el.setAttribute(PENDING, '');
-                        el.removeAttribute(MARK);
-                    }
-                    cache.delete(el);
-                    let props;
-                    try {
-                    const s = snapshot(el);
-                    props = [];
-                    const bg = surface(s.bg);
-                    if (!svgText && bg && !/^(HTML|BODY)$/.test(el.tagName)) {
-                        props.push(`background-color:${bg}!important`);
-                    }
-                    const preserveText = coloredSurface(el);
-                    if (!preserveText && neutral(s.color) && s.color.light < 195) {
-                        props.push(`color:${s.color.light < 100 ? '#e4e7ec' : '#a8afb9'}!important`);
-                    }
-                    if (svgText && neutral(s.fill) && s.fill.light < 195) props.push('fill:#b4bbc5!important');
-                    if (!svgText) s.borders.forEach((color, i) => {
-                        if (neutral(color) && color.light > 95) props.push(`border-${['top', 'right', 'bottom', 'left'][i]}-color:#3b4048!important`);
-                    });
-                    } finally {
-                        if (oldMark !== null) el.setAttribute(MARK, oldMark);
-                        if (!wasPending) el.removeAttribute(PENDING);
-                    }
-                    if (!props.length) continue;
-                    if (!ids.has(el)) ids.set(el, String(++serial));
-                    const id = ids.get(el);
-                    if (el.getAttribute(MARK) !== id) el.setAttribute(MARK, id);
-                    rules.push(`[${MARK}="${id}"]{${props.join(';')}}`);
+            values = elements.map(el => {
+                const s = snapshot(el), props = [], svgText = el.namespaceURI !== HTML_NS;
+                const bg = surface(s.bg);
+                if (!svgText && bg && !/^(HTML|BODY)$/.test(el.tagName)) props.push(`background-color:${bg}!important`);
+                if (!coloredSurface(el) && neutral(s.color) && s.color.light < 195) {
+                    props.push(`color:${s.color.light < 100 ? '#e4e7ec' : '#a8afb9'}!important`);
                 }
-                const css = rules.join('\n');
-                pending.push([state, css]);
-            }
-            for (const [state, css] of pending) {
-                if (state.patches.textContent !== css) {
-                    // Erst die neue Regelmenge hinzufügen, dann die alte entfernen.
-                    // So gibt es auch beim Austausch keinen ungestalteten Zwischenstand.
-                    const replacement = document.createElement('style');
-                    owned.add(replacement);
-                    replacement.textContent = css;
-                    state.patches.before(replacement);
-                    state.patches.remove();
-                    state.patches = replacement;
-                }
-            }
+                if (svgText && neutral(s.fill) && s.fill.light < 195) props.push('fill:#b4bbc5!important');
+                if (!svgText) s.borders.forEach((color, i) => {
+                    if (neutral(color) && color.light > 95) props.push(`border-${['top','right','bottom','left'][i]}-color:#3b4048!important`);
+                });
+                return props.join(';');
+            });
         } finally {
-            for (const state of roots.values()) {
-                if (state.base) state.base.disabled = !enabled;
-                if (state.patches) state.patches.disabled = !enabled;
-                if (state.finish) state.finish.disabled = !enabled;
-                state.ready = true;
-                if (state.guard) state.guard.disabled = true;
+            // Also restore the previous dark rules if a component throws during measurement.
+            if (!values) elements.forEach((el, i) => {
+                if (previous[i] !== null) el.setAttribute(MARK, previous[i]);
+            });
+        }
+        elements.forEach((el, i) => {
+            if (!values[i]) {
+                state.entries.delete(el);
+                return;
             }
-            for (const el of pendingElements) el.removeAttribute(PENDING);
-            pendingElements.clear();
+            let entry = state.recipes.get(values[i]);
+            if (!entry) {
+                const id = String(++serial);
+                const sheet = state.patches.sheet;
+                const index = sheet.insertRule(`[${MARK}="${id}"]{${values[i]}}`, sheet.cssRules.length);
+                entry = { id, rule: sheet.cssRules[index] };
+                state.recipes.set(values[i], entry);
+            }
+            el.setAttribute(MARK, entry.id);
+            state.entries.set(el, entry);
+        });
+    }
+
+    function releasePending(root) {
+        for (const el of pendingElements) {
+            if (!el.isConnected || el.getRootNode() === root) {
+                el.removeAttribute(PENDING);
+                pendingElements.delete(el);
+            }
+        }
+    }
+
+    function flush() {
+        frame = 0;
+        if (!enabled) return;
+        const started = performance.now();
+        let remaining = 200;
+        for (const [root, state] of roots) {
+            if (root !== document) {
+                if (root.host.isConnected) state.connected = true;
+                else if (state.connected) {
+                    state.observer.disconnect();
+                    root.removeEventListener('load', state.onLoad, true);
+                    for (const style of [state.base,state.patches,state.finish,state.guard]) style?.remove();
+                    roots.delete(root);
+                    continue;
+                }
+            }
+            ensureStyles(root, state);
+            if (!state.patches?.sheet) continue;
+            if (state.full) {
+                state.queue.clear();
+                collect(state, root, root);
+                state.targets.clear();
+                state.full = false;
+            } else {
+                // Parent targets already cover their descendants.
+                for (const node of state.targets) {
+                    let parent = node.parentElement;
+                    while (parent && !state.targets.has(parent)) parent = parent.parentElement;
+                    if (!parent) collect(state, node, root);
+                }
+                state.targets.clear();
+            }
+            if (state.prune) {
+                for (const [el, entry] of state.entries) if (el.getRootNode() !== root) {
+                    state.entries.delete(el);
+                }
+                state.prune = false;
+            }
+            const batch = [];
+            if (performance.now() - started < 8) for (const el of state.queue) {
+                if (!remaining) break;
+                state.queue.delete(el);
+                if (el.getRootNode() === root) { batch.push(el); remaining--; }
+            }
+            if (batch.length) {
+                try { measure(state, batch); }
+                catch (error) {
+                    // A failed fallback must never leave a complete view hidden.
+                    state.queue.clear();
+                    console.warn('FRITZ!Box Dark Mode: Farbfallback übersprungen.', error);
+                }
+            }
+            if (!state.queue.size) {
+                state.ready = true;
+                state.guard.disabled = true;
+                releasePending(root);
+            }
         }
         mountButton();
+        if ([...roots].some(([root, state]) => (root === document || root.host.isConnected)
+            && (state.full || state.targets.size || state.queue.size || state.prune))) schedule();
     }
 
     function updateButton() {
@@ -412,7 +478,7 @@
             pendingElements.clear();
         }
         updateButton();
-        if (enabled) refresh();
+        if (enabled) invalidateAll();
     }
 
     function mountButton() {
@@ -420,7 +486,7 @@
         if (document.getElementById(UI_ID)) return;
         const host = document.createElement('div');
         host.id = UI_ID;
-        host.setAttribute('data-fbdm-version', '1.1.0');
+        host.setAttribute('data-fbdm-version', '1.1.2');
         owned.add(host);
         host.style.cssText = 'all:initial!important;position:fixed!important;right:14px!important;bottom:14px!important;z-index:2147483647!important;display:block!important;';
         const ui = host.attachShadow({ mode: 'closed' });
@@ -444,14 +510,8 @@
     }
 
     register(document);
-    document.addEventListener('DOMContentLoaded', () => { mountButton(); schedule(); }, { once: true });
-    window.addEventListener('load', schedule, true);
-    window.addEventListener('resize', schedule, { passive: true });
-    document.addEventListener('click', schedule, true);
-    document.addEventListener('input', schedule, true);
-    document.addEventListener('change', schedule, true);
-    document.addEventListener('pointerover', schedule, true);
-    document.addEventListener('pointerout', schedule, true);
+    document.addEventListener('DOMContentLoaded', mountButton, { once: true });
+    window.addEventListener('resize', invalidateAll, { passive: true });
     window.addEventListener('storage', event => {
         if (event.key === KEY) setEnabled(event.newValue !== 'off', false);
     });

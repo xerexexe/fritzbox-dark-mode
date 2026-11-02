@@ -1,0 +1,38 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Lokaler Dialogtest</title>
+<script>
+const closedRoots = new WeakMap();
+const nativeAttach = Element.prototype.attachShadow;
+Element.prototype.attachShadow = function(...args) { const root=Reflect.apply(nativeAttach,this,args); closedRoots.set(this,root); return root; };
+</script><script src="/fritzbox-dark.user.js"></script>
+<style>body{font:16px system-ui;padding:24px;background:white;color:#333}pre{white-space:pre-wrap}#fixtures{display:grid;gap:40px;max-width:600px}button{padding:8px 16px}</style></head><body>
+<h1>Lokaler Dialogtest</h1><p>Originalregeln für die weißen Dialogschatten, ohne Routerfunktionen.</p>
+<button id="run">Dialog prüfen</button><pre id="result">Bereit.</pre><div id="fixtures"></div>
+<script>
+const nativeCSS = `:host{display:block;--white-100:#fff;--content-shadow:0 -.25rem .5rem 1rem #fff}*{box-sizing:border-box}.dialog{background:white;color:#333;width:560px;max-width:100%;padding:0;border-radius:4px}.dialog__header{background-color:var(--white-100);box-shadow:var(--content-shadow);display:grid;margin-bottom:20px;padding:20px 24px 0;position:sticky;top:0;z-index:2}.dialog__header-title{font-size:20px;margin:0}.dialog__content{padding:0 24px}.dialog .button-block.button-block--popover{background-color:var(--white-100);bottom:0;box-shadow:var(--content-shadow);margin-top:24px;padding:0 24px 20px;position:sticky;z-index:2}.v-modal-view,.v-modal-view__header,.v-modal-view__footer{background-color:rgba(255,255,255,.9);color:#333;padding:12px}`;
+const dialogOverride = '.dialog{--content-shadow:0 -.25rem .5rem 1rem var(--white-100)}';
+const markup = '<div class="dialog"><div class="dialog__header"><h2 class="dialog__header-title">Testdialog</h2></div><div class="dialog__content"><p>Dieser Dialog hat keine Routerfunktion.</p></div><div class="button-block button-block--popover"><button>Abbrechen</button></div></div><div class="v-modal-view"><div class="v-modal-view__header">Älterer Dialogkopf</div><div class="v-modal-view__footer">Ältere Dialogfußleiste</div></div>';
+const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+const dark=el=>getComputedStyle(el).backgroundColor==='rgb(27, 29, 32)';
+async function settled(root){for(let i=0;i<60;i++){await frame();if(root.querySelector('.dialog__header')&&getComputedStyle(root.querySelector('.dialog__header')).visibility!=='hidden'&&dark(root.querySelector('.dialog__header')))return}throw Error('Dialog wird nicht dunkel')}
+const dimensions=el=>getComputedStyle(el).boxShadow.replace(/rgba?\([^)]*\)/g,'').trim();
+document.querySelector('#run').onclick=async()=>{
+ const rows=[],checks=[],check=(name,ok)=>{checks.push((ok?'✓ ':'✗ ')+name);if(!ok)throw Error(name)};
+ document.querySelector('#fixtures').replaceChildren();
+ try{
+ for(const mode of ['open','closed']){
+  const host=document.createElement('section');document.querySelector('#fixtures').append(host);const root=host.attachShadow({mode});const sheet=new CSSStyleSheet();sheet.replaceSync(nativeCSS+dialogOverride);root.adoptedStyleSheets=[sheet];root.innerHTML=markup;
+  const header=root.querySelector('.dialog__header'),footer=root.querySelector('.button-block');const original=[dimensions(header),dimensions(footer)];
+  await settled(root);
+  check(mode+': Kopf und Fuß dunkel',dark(header)&&dark(footer));
+  check(mode+': Schatten dunkel',getComputedStyle(header).boxShadow.includes('rgb(27, 29, 32)')&&getComputedStyle(footer).boxShadow.includes('rgb(27, 29, 32)'));
+  check(mode+': Schattenabmessungen unverändert',dimensions(header)===original[0]&&dimensions(footer)===original[1]);
+  check(mode+': ältere Dialogflächen dunkel',[...root.querySelectorAll('.v-modal-view,.v-modal-view__header,.v-modal-view__footer')].every(dark));
+  rows.push({root,original,mode});
+ }
+ const toggle=closedRoots.get(document.querySelector('#fbdm-v3-switch')).querySelector('button');toggle.click();await frame();
+ for(const {root,mode} of rows){const header=root.querySelector('.dialog__header');check(mode+': Hell-Modus mit originalem weißen Schatten',getComputedStyle(header).backgroundColor==='rgb(255, 255, 255)'&&getComputedStyle(header).boxShadow.includes('rgb(255, 255, 255)'))}
+ toggle.click();for(const {root,mode} of rows){await settled(root);check(mode+': erneut dunkel',dark(root.querySelector('.dialog__header')));root.innerHTML=markup;await settled(root);check(mode+': nach neuem Dialoginhalt keine weißen Schatten',getComputedStyle(root.querySelector('.button-block')).boxShadow.includes('rgb(27, 29, 32)'))}
+ document.querySelector('#result').textContent='BESTANDEN: '+checks.length+' Prüfungen\n'+checks.join('\n');
+ }catch(error){document.querySelector('#result').textContent='FEHLER: '+error.message+'\n'+checks.join('\n')}
+};
+</script></body></html>
