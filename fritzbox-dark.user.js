@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         FRITZ!Box Dark Mode – Shadow DOM
 // @namespace    local.fritzbox.darkmode
-// @version      1.0.0
+// @version      1.1.0
 // @description  Dunkle Oberflächen, auch in Web-Komponenten. Mit Schalter und ohne externe Bibliotheken.
 // @match        *://fritz.box/*
 // @match        *://*.fritz.box/*
@@ -33,119 +33,133 @@
 
     let enabled = true;
     try { enabled = localStorage.getItem(KEY) !== 'off'; } catch (_) { /* Storage kann gesperrt sein. */ }
-    let timer = 0;
+    let scheduled = false;
     let serial = 0;
     let button;
     const roots = new Map();
     const ids = new WeakMap();
     const owned = new WeakSet();
     const pendingElements = new Set();
+    // A constructed sheet also exists before <html> is parsed and survives head replacement.
+    let startupSheet;
+    try {
+        startupSheet = new CSSStyleSheet();
+        startupSheet.replaceSync('html,body{background:#141517!important;color:#e4e7ec!important;color-scheme:dark!important}');
+        startupSheet.disabled = !enabled;
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, startupSheet];
+    } catch (_) { startupSheet = null; /* The regular style nodes provide the fallback. */ }
 
     const baseCSS = `
         :root, :host {
             color-scheme: dark !important;
             --white-100: #fff !important;
-            --charcoal-gray-100: #dce5ef !important;
-            --charcoal-gray-73: rgba(205,218,231,.78) !important;
-            --charcoal-gray-45: rgba(180,199,219,.48) !important;
-            --charcoal-gray-30: rgba(180,199,219,.38) !important;
-            --charcoal-gray-20: rgba(180,199,219,.2) !important;
-            --charcoal-gray-8: rgba(180,199,219,.08) !important;
-            --charcoal-gray-5: rgba(180,199,219,.05) !important;
-            --charcoal-gray-3: rgba(180,199,219,.03) !important;
-            --charcoal-gray-tints-3-tint: #18212b !important;
-            --charcoal-gray-tints-5-tint: #1b2632 !important;
-            --charcoal-gray-tints-8-tint: #202d3c !important;
-            --charcoal-gray-tints-20-tint: #304154 !important;
-            --charcoal-gray-tints-30-tint: #3c5065 !important;
-            --charcoal-gray-tints-45-tint: #566c83 !important;
-            --charcoal-gray-tints-73-tint: #a9b9ca !important;
-            --rice-gray-100: #111720 !important;
-            --blue-tints-10-tint: #1d3044 !important;
-            --blue-tints-20-tint: #28435d !important;
-            --blue-tints-30-tint: #315471 !important;
-            --blue-dark-tints-10-tint: #1c2b3d !important;
-            --blue-dark-tints-20-tint: #253d54 !important;
-            --interactive-base-default: #1b2632 !important;
-            --interactive-base-checked: #253d54 !important;
-            --interactive-base-disabled: #202833 !important;
-            --color-text: #dce5ef !important;
-            --color-text-bright: #f4f7fb !important;
-            --color-bg-base: #111720 !important;
-            --color-bg-surface: #1b2531 !important;
-            --color-bg-subtle: #263343 !important;
-            --color-text-base: #dce5ef !important;
-            --color-text-subtle: #a6b5c6 !important;
-            --color-border: #39495b !important;
+            --charcoal-gray-100: #e4e7ec !important;
+            --charcoal-gray-73: rgba(216,221,229,.78) !important;
+            --charcoal-gray-45: rgba(185,193,205,.48) !important;
+            --charcoal-gray-30: rgba(185,193,205,.38) !important;
+            --charcoal-gray-20: rgba(185,193,205,.2) !important;
+            --charcoal-gray-8: rgba(185,193,205,.08) !important;
+            --charcoal-gray-5: rgba(185,193,205,.05) !important;
+            --charcoal-gray-3: rgba(185,193,205,.03) !important;
+            --charcoal-gray-tints-3-tint: #1b1d20 !important;
+            --charcoal-gray-tints-5-tint: #23262a !important;
+            --charcoal-gray-tints-8-tint: #2a2d32 !important;
+            --charcoal-gray-tints-20-tint: #363b42 !important;
+            --charcoal-gray-tints-30-tint: #474d56 !important;
+            --charcoal-gray-tints-45-tint: #747c88 !important;
+            --charcoal-gray-tints-73-tint: #acb3bd !important;
+            --rice-gray-100: #141517 !important;
+            --blue-tints-10-tint: #263242 !important;
+            --blue-tints-20-tint: #2d4057 !important;
+            --blue-tints-30-tint: #38536f !important;
+            --blue-dark-tints-10-tint: #263242 !important;
+            --blue-dark-tints-20-tint: #2d4057 !important;
+            --interactive-base-default: #23262a !important;
+            --interactive-base-checked: #2d4057 !important;
+            --interactive-base-disabled: #25282d !important;
+            --color-text: #e4e7ec !important;
+            --color-text-bright: #f4f5f7 !important;
+            --color-bg-base: #141517 !important;
+            --color-bg-surface: #222529 !important;
+            --color-bg-subtle: #2b2f35 !important;
+            --color-text-base: #e4e7ec !important;
+            --color-text-subtle: #a8afb9 !important;
+            --color-border: #3b4048 !important;
         }
-        html, body { background-color: #111720 !important; color: #dce5ef !important; }
+        html, body { background-color: #141517 !important; color: #e4e7ec !important; }
         main#js3ContentBox, .js3-view, .js3-view__container {
-            background-color:#151d27!important; color:#dce5ef!important;
+            background-color:#1b1d20!important; color:#e4e7ec!important;
         }
-        :focus-visible { outline: 2px solid #85c7ff !important; outline-offset: 2px; }
-        ::selection { background-color: #32618a !important; color: #fff !important; }
+        :focus-visible { outline: 2px solid #91bfff !important; outline-offset: 2px; }
+        ::selection { background-color: #335478 !important; color: #fff !important; }
         input, select, textarea { color-scheme: dark !important; }
-        input[type="checkbox"], input[type="radio"], progress { accent-color: #66b5ff; }
+        input[type="checkbox"], input[type="radio"], progress { accent-color: #8bbcff; }
         input[type="checkbox"], input[type="radio"] {
             appearance:auto!important; background-image:none!important; background-color:transparent!important;
         }
-        input::placeholder, textarea::placeholder { color: #99a8ba !important; opacity: 1; }
-        a[href]:not([role="button"]) { color: #8ccaff; }
+        input::placeholder, textarea::placeholder { color: #9ca4b0 !important; opacity: 1; }
+        a[href]:not([role="button"]) { color: #91bfff; }
     `;
 
     const finishCSS = `
-        #blueBarBox { background-color:#182536!important;
-            background-image:linear-gradient(110deg,#23364e,#141e2b)!important; border-color:#314257!important; }
-        #navigationMenu, .menuArea { background-image:none!important; background-color:#151f2b!important; }
-        #menuBox { border-color:#2d3d50!important; }
-        .blueBarLnk { color:#e2edfa!important; border-color:#526a85!important; }
-        .menu_item.show, .menu_item.with_sub.selected { color:#dce5ef!important; }
-        .menu_item.show:hover { background-color:#223247!important; }
-        .menu_item.selected:not(.with_sub) { background-color:#294866!important; color:#f3f8ff!important; }
-        a:not([role="button"]):not(.js3-button__link) { color:#8ccaff!important; }
-        .home-list { background-color:#192430!important; border:1px solid #304155!important;
+        #blueBarBox { background-color:#1d1f23!important;
+            background-image:none!important; border-color:#34383f!important; }
+        #navigationMenu, .menuArea { background-image:none!important; background-color:#191b1e!important; }
+        #menuBox { border-color:#34383f!important; }
+        .blueBarLnk { color:#e4e7ec!important; border-color:#4a515d!important; }
+        .menu_item.show, .menu_item.with_sub.selected { color:#e4e7ec!important; }
+        .menu_item.show:hover { background-color:#282c32!important; }
+        .menu_item.selected:not(.with_sub) { background-color:#293b54!important; color:#f4f5f7!important; }
+        a:not([role="button"]):not(.js3-button__link) { color:#91bfff!important; }
+        .home-list { background-color:#222529!important; border:1px solid #363b42!important;
             border-radius:8px; padding:12px; }
-        .home-list__header { border-bottom:1px solid #344960!important; margin-bottom:8px; }
-        .home-list__header::after { background-color:#344960!important; }
-        .home-list__header-box { background-color:#263c53!important; color:#edf5ff!important; border-radius:4px 4px 0 0; }
-        .home-list__header-box * { color:#edf5ff!important; }
+        .home-list__header { border-bottom:1px solid #363b42!important; margin-bottom:8px; }
+        .home-list__header::after { background-color:#363b42!important; }
+        .home-list__header-box { background-color:#292d33!important; color:#e4e7ec!important; border-radius:4px 4px 0 0; }
+        .home-list__header-box * { color:#e4e7ec!important; }
         .home-list__body { background-color:transparent!important; }
         .home-list__table { border-color:transparent!important; }
-        .home-list__table tr:hover { background-color:#223348!important; }
-        .js3-tabs::after { background:#151f2b!important; border-color:#344960!important; }
-        .js3-tabs__tab { background:#202e3f!important; color:#bdcfe2!important; }
-        .js3-tabs__tab.js3-tabs__tab--active { background:#192b3f!important; color:#edf5ff!important; border-color:#344960!important; }
-        .js3-tabs__scroll-button, .js3-button-group__scroll-button { background-color:#1d2c3f!important; color:#8ccaff!important; }
-        .js3-page-header, .page-tabs, .page-tabs__tab--active { background-color:#18222f!important; border-color:#344960!important; }
+        .home-list__table tr:hover { background-color:#2b3037!important; }
+        .js3-tabs::after { background:#191b1e!important; border-color:#363b42!important; }
+        .js3-tabs__tab { background:#222529!important; color:#a8afb9!important; }
+        .js3-tabs__tab.js3-tabs__tab--active { background:#293b54!important; color:#e4e7ec!important; border-color:#363b42!important; }
+        .js3-tabs__scroll-button, .js3-button-group__scroll-button { background-color:#25292f!important; color:#91bfff!important; }
+        .js3-page-header, .page-tabs, .page-tabs__tab--active { background-color:#1d1f23!important; border-color:#363b42!important; }
         .js3-button:not(.js3-button--primary):not(.js3-button--back):not(.js3-button--critical):not(.js3-button--disabled) {
-            --button-text-color:#8ccaff!important; }
-        .secondary-button, .tertiary-button { color:#8ccaff!important; }
+            --button-text-color:#91bfff!important; }
+        .secondary-button, .tertiary-button { color:#91bfff!important; }
         input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="image"]),
-        select, textarea { background-color:#172333!important; color:#edf5ff!important; border-color:#465c74!important; }
-        input:disabled, textarea:disabled, select:disabled { color:#91a2b7!important; background-color:#202833!important; }
-        input::placeholder, textarea::placeholder { color:#99a8ba!important; }
-        .network-topology__ip-address, .network-topology__mesh-master { color:#afc1d5!important; }
-        .js3-input__container { background-color:#172333!important; }
+        select, textarea { background-color:#1b1d20!important; color:#e4e7ec!important; border-color:#4a515d!important; }
+        input:disabled, textarea:disabled, select:disabled { color:#89929f!important; background-color:#25282d!important; }
+        input::placeholder, textarea::placeholder { color:#9ca4b0!important; }
+        .network-topology__ip-address, .network-topology__mesh-master { color:#a8afb9!important; }
+        .js3-input__container { background-color:#1b1d20!important; }
         .js3-input__small-label {
-            background-image:none!important; background-color:#172333!important; color:#b3c7dd!important;
+            background-image:none!important; background-color:#1b1d20!important; color:#b4bbc5!important;
         }
         .wctbl .wctbl__footer::after {
-            background:linear-gradient(transparent,rgba(21,29,39,.98) 10%)!important;
+            background:linear-gradient(transparent,rgba(27,29,32,.98) 10%)!important;
         }
         .heatNoData {
-            background-image:repeating-linear-gradient(45deg,#263445,#263445 3px,#344558 0,#344558 6px)!important;
+            background-image:repeating-linear-gradient(45deg,#2b2f35,#2b2f35 3px,#3b4048 0,#3b4048 6px)!important;
         }
         .page-blocks__block--chart canvas { filter:brightness(1.35); }
         [data-fbdm-pending], [data-fbdm-pending] * { visibility:hidden!important; }
     `;
 
     function isOurs(node) {
-        return owned.has(node) || node.nodeType === 1 && node.id === UI_ID;
+        return owned.has(node) || owned.has(node.parentNode) || node.nodeType === 1 && node.id === UI_ID;
     }
 
     function schedule() {
-        if (!enabled || timer) return;
-        timer = window.setTimeout(() => { timer = 0; refresh(); }, 32);
+        if (!enabled || scheduled) return;
+        scheduled = true;
+        // MutationObserver and load callbacks finish before the next paint. A timer
+        // here would let changed classes and late stylesheets paint white first.
+        queueMicrotask(() => {
+            scheduled = false;
+            if (enabled) refresh();
+        });
     }
 
     function makeStyle(root, text) {
@@ -183,12 +197,12 @@
             }
             if (records.some(record => {
                 if (isOurs(record.target)) return false;
-                if (record.type === 'attributes') return true;
+                if (record.type === 'attributes' || record.type === 'characterData') return true;
                 return [...record.addedNodes, ...record.removedNodes].some(node => !isOurs(node));
             })) schedule();
         });
         state.observer.observe(root, {
-            childList: true, subtree: true, attributes: true,
+            childList: true, subtree: true, attributes: true, characterData: true,
             attributeFilter: ['class', 'style', 'hidden', 'open', 'disabled', 'selected',
                 'aria-expanded', 'aria-selected', 'aria-checked', 'aria-disabled', 'value'],
         });
@@ -254,7 +268,7 @@
     function neutral(color) { return color && color.a > 0.15 && color.chroma < 42; }
     function surface(color) {
         if (!neutral(color) || color.light < 105) return null;
-        const hex = color.light > 242 ? '#151d27' : color.light > 205 ? '#1d2835' : '#2b394a';
+        const hex = color.light > 242 ? '#1b1d20' : color.light > 205 ? '#25282d' : '#30353c';
         if (color.a > 0.98) return hex;
         const rgb = hex.slice(1).match(/../g).map(v => parseInt(v, 16));
         return `rgba(${rgb.join(',')},${color.a})`;
@@ -331,11 +345,11 @@
                     }
                     const preserveText = coloredSurface(el);
                     if (!preserveText && neutral(s.color) && s.color.light < 195) {
-                        props.push(`color:${s.color.light < 100 ? '#dce5ef' : '#a6b5c6'}!important`);
+                        props.push(`color:${s.color.light < 100 ? '#e4e7ec' : '#a8afb9'}!important`);
                     }
-                    if (svgText && neutral(s.fill) && s.fill.light < 195) props.push('fill:#b8c8d9!important');
+                    if (svgText && neutral(s.fill) && s.fill.light < 195) props.push('fill:#b4bbc5!important');
                     if (!svgText) s.borders.forEach((color, i) => {
-                        if (neutral(color) && color.light > 95) props.push(`border-${['top', 'right', 'bottom', 'left'][i]}-color:#39495b!important`);
+                        if (neutral(color) && color.light > 95) props.push(`border-${['top', 'right', 'bottom', 'left'][i]}-color:#3b4048!important`);
                     });
                     } finally {
                         if (oldMark !== null) el.setAttribute(MARK, oldMark);
@@ -385,6 +399,7 @@
 
     function setEnabled(value, persist = true) {
         enabled = value;
+        if (startupSheet) startupSheet.disabled = !enabled;
         if (persist) try { localStorage.setItem(KEY, enabled ? 'on' : 'off'); } catch (_) { /* Optional. */ }
         for (const state of roots.values()) {
             if (state.base) state.base.disabled = !enabled;
@@ -405,6 +420,7 @@
         if (document.getElementById(UI_ID)) return;
         const host = document.createElement('div');
         host.id = UI_ID;
+        host.setAttribute('data-fbdm-version', '1.1.0');
         owned.add(host);
         host.style.cssText = 'all:initial!important;position:fixed!important;right:14px!important;bottom:14px!important;z-index:2147483647!important;display:block!important;';
         const ui = host.attachShadow({ mode: 'closed' });
@@ -412,10 +428,10 @@
         style.textContent = `
             :host { color-scheme: dark; }
             button { box-sizing: border-box; font: 600 12px/1.3 system-ui,sans-serif;
-                background:#1c2938; color:#e5efff; border:1px solid #51657c; border-radius:24px;
+                background:#24272c; color:#e4e7ec; border:1px solid #4a515d; border-radius:24px;
                 padding:9px 13px; cursor:pointer; box-shadow:0 3px 14px #0005; }
-            button:hover { background:#2b4058; }
-            button:focus-visible { outline:2px solid #8ccaff; outline-offset:3px; }
+            button:hover { background:#303640; }
+            button:focus-visible { outline:2px solid #91bfff; outline-offset:3px; }
             @media print { :host { display:none!important; } }
         `;
         button = document.createElement('button');

@@ -2,10 +2,12 @@
 
 Dunkle Oberflächen für die FRITZ!Box-Weboberfläche, einschließlich der gekapselten Web-Komponenten moderner FRITZ!OS-Versionen.
 
-**Version 1.0.0 · MIT-Lizenz · Community-Projekt**
+**Version 1.1.0 · MIT-Lizenz · Community-Projekt**
 
 [![Greasy Fork installs](https://img.shields.io/greasyfork/dt/602848?label=Greasy%20Fork%20installs)](https://greasyfork.org/de/scripts/602848-fritz-box-dark-mode-shadow-dom/stats)
 [![GitHub release downloads](https://img.shields.io/github/downloads/xerexexe/fritzbox-dark-mode/total?label=GitHub%20release%20downloads)](https://github.com/xerexexe/fritzbox-dark-mode/releases)
+
+Die Zähler zeigen Greasy-Fork-Installationen und Downloads der hochgeladenen GitHub-Release-Dateien. Direkte Raw-Downloads werden von GitHub nicht erfasst; die Zahlen sind keine Anzahl eindeutiger Nutzer.
 
 ## Installation
 
@@ -21,10 +23,12 @@ Hinweis für frühe Tester: Die erste Veröffentlichung wurde kurzzeitig als 3.2
 
 ## Funktionen
 
+- Neutrale Anthrazit- und Grautöne mit blauen Akzenten; der Aufbau der FRITZ!Box-Oberfläche bleibt erhalten.
 - Dunkle Kopfzeile, Navigation, Karten, Tabellen, Eingabefelder und Reiter.
 - Unterstützung für offene sowie nach Script-Start erfasste geschlossene Shadow Roots.
 - Nachgeladene Ansichten und neu erstellte Komponenten werden berücksichtigt.
 - Dunkle Ladeflächen ab Seitenstart; neue Komponenten werden erst nach ihrer Farbanpassung eingeblendet.
+- Farbänderungen durch Klassen, Inline-Styles und Stylesheet-Text werden vor dem nächsten Bildaufbau verarbeitet. Die dunkle Dokumentbasis übersteht auch einen ausgetauschten Seitenkopf.
 - Lesbare Feldüberschriften ohne weiße Querstreifen, dunkle Tabellen-Fußleisten und Schraffuren für fehlende WLAN-Messwerte.
 - Farbige Statusanzeigen, Verbindungslinien und Gerätebilder bleiben erhalten.
 - Helle und dunkle Ansicht lassen sich ohne Neuladen umschalten.
@@ -69,6 +73,8 @@ Die ausführbare Quelle steht in 'fritzbox-dark.user.js'. Bei Updates die Versio
 Die Datei 'greasyfork-description.html' enthält die Beschreibung für Greasy Fork. [Die veröffentlichte Greasy-Fork-Seite](https://greasyfork.org/de/scripts/602848-fritz-box-dark-mode-shadow-dom) synchronisiert Code und Beschreibung automatisch aus dem 'main'-Branch dieses Repositorys. Es wird der vollständige, lesbare Script-Code veröffentlicht, kein externer Loader.
 
 Lokale Browserprüfungen deckten Dokumentstart, neutrale Flächen und Texte, Statusfarben, SVG-Linien, offene/geschlossene/verschachtelte/später erzeugte Shadow Roots, ersetzte Komponenten-Inhalte, Klassenwechsel, eingebettete Seiten, Umschalter, gespeicherte Auswahl und Beobachter-Stabilität ab. Ein weiterer Test prüfte die aus FRITZ!OS gelesenen Selektoren und Pseudoelemente.
+
+Für 1.1.0 wurde zusätzlich ein Ladeblitz beim Klassenwechsel einer bereits vorhandenen transparenten Fläche reproduziert: 1.0.0 zeigte am folgenden Animationsframe eine helle Fläche. Die korrigierte Fassung bestand 66 lokale Browserprüfungen, darunter Änderungen an Stylesheet-Text, nachgeladene CSS-Dateien, einen ausgetauschten Seitenkopf und den Hell-/Dunkel-Schalter; 76 beobachtete Animationsframes enthielten keine hellen Testflächen. Diese Prüfung ersetzt keinen Test jeder FRITZ!OS-Ansicht.
 
 ## Lizenz
 

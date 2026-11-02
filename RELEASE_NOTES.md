@@ -1,16 +1,13 @@
-FRITZ!Box Dark Mode 1.0.0 ist die erste öffentliche Ausgabe.
+FRITZ!Box Dark Mode 1.1.0 stimmt die Farben ruhiger ab und korrigiert einen reproduzierten weißen Ladeblitz.
 
 [Auf Greasy Fork installieren](https://greasyfork.org/de/scripts/602848-fritz-box-dark-mode-shadow-dom). Code und Beschreibung werden dort automatisch aus GitHub synchronisiert.
 
-- Dunkle Kopfzeile, Navigation, Karten, Tabellen, Eingabefelder und Reiter.
-- Unterstützung für Shadow-DOM-Komponenten und nachgeladene Ansichten.
-- Umschalter unten rechts mit lokal gespeicherter Auswahl.
-- Statusfarben und Verbindungsgrafiken bleiben erhalten.
-- Keine externen Bibliotheken oder Telemetrie.
-- Ladeschutz gegen weiße Flächen beim Seitenaufbau und bei internen Seitenwechseln.
-- Feldüberschriften ohne weiße Querstreifen, dunkle Tabellen-Fußleisten und Auswahlfelder.
-- Dunkle Schraffur für fehlende WLAN-Messwerte und lesbarere Diagrammachsen.
+- Neutrales Anthrazit und Grau, sparsame blaue Akzente. Der FRITZ!Box-Aufbau bleibt erhalten.
+- Klassenwechsel, Inline-Farben und Stylesheet-Text werden vor dem nächsten Bildaufbau eingefärbt.
+- Dunkle Dokumentbasis auch vor dem Aufbau des Seiteninhalts und beim Austausch des Seitenkopfs.
+- Statusfarben, Verbindungsgrafiken und Hell-/Dunkel-Schalter bleiben erhalten.
+- Keine zusätzlichen Berechtigungen, externen Bibliotheken oder Netzwerkanfragen.
 
-Direkt geprüft mit Chrome/Tampermonkey auf einer FRITZ!Box 7590 AX mit FRITZ!OS 8.40-137813 BETA. Andere Versionen und Script-Manager sind nicht zugesichert.
+66 lokale Browserprüfungen bestanden; 76 beobachtete Animationsframes ohne helle Testflächen. Die bisherige Version zeigte beim getesteten Klassenwechsel eine helle Fläche.
 
-Frühe 3.2.x-Testkopien einmal durch diese Fassung ersetzen, damit spätere 1.x-Updates erkannt werden. Die Darstellung bleibt gleich.
+Ein Browserbild vor dem Start des Userscripts kann das Script weiterhin nicht verhindern. Andere FRITZ!OS-Versionen und Script-Manager können abweichen.
