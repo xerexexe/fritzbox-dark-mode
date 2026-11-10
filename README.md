@@ -2,7 +2,7 @@
 
 Dunkle Oberflächen für die FRITZ!Box-Weboberfläche, einschließlich der gekapselten Web-Komponenten moderner FRITZ!OS-Versionen.
 
-**Version 1.1.2 · MIT-Lizenz · Community-Projekt**
+**Version 1.1.4 · MIT-Lizenz · Community-Projekt**
 
 [![Greasy Fork installs](https://img.shields.io/greasyfork/dt/602848?label=Greasy%20Fork%20installs)](https://greasyfork.org/de/scripts/602848-fritz-box-dark-mode-shadow-dom/stats)
 [![GitHub release downloads](https://img.shields.io/github/downloads/xerexexe/fritzbox-dark-mode/total?label=GitHub%20release%20downloads)](https://github.com/xerexexe/fritzbox-dark-mode/releases)
@@ -27,12 +27,14 @@ Hinweis für frühe Tester: Die erste Veröffentlichung wurde kurzzeitig als 3.2
 - Dunkle Kopfzeile, Navigation, Karten, Tabellen, Eingabefelder und Reiter.
 - Unterstützung für offene sowie nach Script-Start erfasste geschlossene Shadow Roots.
 - Nachgeladene Ansichten und neu erstellte Komponenten werden berücksichtigt.
-- Dunkle Ladeflächen ab Seitenstart; neue Komponenten werden erst nach ihrer Farbanpassung eingeblendet.
+- Dunkle Ladeflächen ab Seitenstart mit zeitlich begrenztem Ausblendschutz.
 - Geänderte Bereiche werden gezielt und in begrenzten Portionen eingefärbt. Mausbewegungen und gewöhnliche Änderungen laufender Textanzeigen lösen keine vollständigen Farbprüfungen aus.
-- Die dunkle Dokumentbasis übersteht einen ausgetauschten Seitenkopf. Neue Flächen werden während ihrer Farbanpassung vorübergehend ausgeblendet.
+- Die dunkle Dokumentbasis übersteht einen ausgetauschten Seitenkopf. Bereits sichtbare Bereiche bleiben beim Nachfärben, nachgeladenem CSS und Größenänderungen sichtbar.
 - Lesbare Feldüberschriften ohne weiße Querstreifen, dunkle Tabellen-Fußleisten und Schraffuren für fehlende WLAN-Messwerte.
 - Dunkle Dialogköpfe, Dialogfußleisten und Schatten ohne weiße Streifen.
-- Farbige Statusanzeigen, Verbindungslinien und Gerätebilder bleiben erhalten.
+- Mesh-Geräte bleiben auch dann sichtbar, wenn FRITZ!OS sie beim Live-Update neu aufbaut. Verbindungswerte werden weiterhin aktualisiert.
+- Dunkle Abdeckungen an Mesh-Linienenden; klassische WLAN-Verbindungen erscheinen als ruhigere grüne Striche mit transparenten Lücken.
+- Farbige Statusanzeigen, andere Verbindungslinien und Gerätebilder bleiben erhalten.
 - Helle und dunkle Ansicht lassen sich ohne Neuladen umschalten.
 - Keine externen Bibliotheken, Werbung oder Telemetrie.
 
@@ -50,13 +52,13 @@ Nur die tatsächlich verwendete Router-Adresse ergänzen.
 
 ## Kompatibilität und Grenzen
 
-Direkt in Chrome mit Tampermonkey auf einer **FRITZ!Box 7590 AX, FRITZ!OS 8.40-137813 BETA** geprüft: Übersicht, Navigation und Mesh-Reiter. Andere Modelle und FRITZ!OS-Versionen können weitere Anpassungen benötigen. Firefox, Greasemonkey und andere Script-Manager wurden nicht praktisch geprüft; insbesondere die Ausführung im Seitenkontext kann sich unterscheiden.
+Direkt in Chrome mit Tampermonkey auf einer **FRITZ!Box 7590 AX** geprüft: Übersicht, Navigation und Mesh-Reiter zunächst unter FRITZ!OS 8.40-137813 BETA; die Mesh-Korrekturen der 1.1.4 zusätzlich unter **FRITZ!OS 8.51**. Andere Modelle und FRITZ!OS-Versionen können weitere Anpassungen benötigen. Firefox, Greasemonkey und andere Script-Manager wurden nicht praktisch geprüft; insbesondere die Ausführung im Seitenkontext kann sich unterscheiden.
 
 Bereits vor Script-Start erzeugte geschlossene Shadow Roots sind nachträglich nicht erreichbar. Bilder und Verbindungsgrafiken werden nicht invertiert. Inline-Farben mit '!important' können Vorrang haben. Falls der Script-Manager erst nach dem ersten Browserbild startet, kann das Script dieses frühere Bild nicht beeinflussen. Der Ladeschutz greift ab seiner Ausführung und auch bei internen Seitenwechseln.
 
 Canvas-Diagramme im Online-Monitor werden leicht aufgehellt, damit ihre fest eingezeichneten Achsen lesbarer sind. Messwerte und Diagrammstruktur bleiben gleich.
 
-Der generische Farbfallback prüft betroffene Teilbäume, bündelt Messungen und verwendet gemeinsame CSS-Regeln für gleiche Farbkombinationen. Große Änderungen werden auf mehrere Animationsframes mit höchstens 200 Elementen pro Durchlauf verteilt. Sehr große Ansichten benötigen deshalb mehrere Bilder bis zur vollständigen Einfärbung.
+Der generische Farbfallback prüft betroffene Teilbäume, bündelt Messungen und verwendet gemeinsame CSS-Regeln für gleiche Farbkombinationen. Kleine Änderungen mit höchstens 24 besuchten Elementen können vor dem nächsten Bild nachgefärbt werden. Große Änderungen werden auf mehrere Animationsframes mit höchstens 200 Elementen pro Durchlauf verteilt. Sehr große Ansichten benötigen deshalb mehrere Bilder bis zur vollständigen Einfärbung. Der anfängliche Ausblendschutz und der Schutz neuer Flächen sind auf höchstens eine Sekunde begrenzt; neu aufgebaute Mesh-Geräte werden nicht ausgeblendet.
 
 ## Datenschutz
 
@@ -80,7 +82,16 @@ Lokale Browserprüfungen deckten Dokumentstart, neutrale Flächen und Texte, Sta
 
 14 zusätzliche Dialogprüfungen decken offene und geschlossene Shadow Roots, eigene Schattenvariablen am Dialogcontainer, unveränderte Schattenabmessungen und die Hell-/Dunkel-Umschaltung ab. Die korrigierten Schatten wurden im Originaldialog auf der FRITZ!Box geprüft. Diese Prüfungen ersetzen keinen Test jeder FRITZ!OS-Ansicht.
 
-Die reproduzierbaren Prüfseiten liegen in `tests/`. Mit `node tests/serve.mjs` starten und dann `http://127.0.0.1:8766/` für den Belastungstest oder `http://127.0.0.1:8766/dialog` für den Dialogtest öffnen. Die Testdialoge haben keine Routerfunktion.
+1.1.4 bestand 45 lokale Prüfungen: 19 Belastungsprüfungen, 10 Prüfungen laufender Aktualisierungen und 16 Mesh-Prüfungen. Beim Ersetzen eines Mesh-Geräts zeigt der Vergleich mit 1.1.3 den verbliebenen Ausblendfehler; die Korrektur hält den Ersatzknoten sichtbar. Horizontale und vertikale WLAN-Linien, offene und geschlossene Shadow Roots, dunkle Endabdeckungen, unveränderte Linienabmessungen und Hell-/Dunkel-Umschaltung sind abgedeckt. Die korrigierten Abdeckungen und WLAN-Linien wurden anschließend im echten Mesh unter FRITZ!OS 8.51 geprüft und die Fassung vom Nutzer freigegeben. Die internen Teststände 1.1.3 und 1.1.1 wurden nicht separat veröffentlicht.
+
+Die reproduzierbaren Prüfseiten liegen in `tests/`. Mit `node tests/serve.mjs` starten und folgende Seiten öffnen:
+
+- `http://127.0.0.1:8766/`: Belastungstest mit 12.000 Elementen.
+- `http://127.0.0.1:8766/dialog`: Dialogtest.
+- `http://127.0.0.1:8766/live`: laufende Aktualisierungen und ersetzte Mesh-Geräte.
+- `http://127.0.0.1:8766/mesh`: Mesh-Linien und Endabdeckungen.
+
+Die Testseiten verwenden künstliche Daten und haben keine Routerfunktion.
 
 ## Lizenz
 

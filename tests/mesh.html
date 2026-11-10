@@ -1,0 +1,59 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Mesh: Linien und Abdeckungen</title>
+<script>
+const closedRoots=new WeakMap(),attach=Element.prototype.attachShadow;
+Element.prototype.attachShadow=function(...args){const r=Reflect.apply(attach,this,args);closedRoots.set(this,r);return r};
+document.write('<script src="'+(new URLSearchParams(location.search).has('baseline')?'/baseline.user.js':'/fritzbox-dark.user.js')+'"><\/script>');
+</script>
+<style>body{font:16px system-ui;background:#fff;color:#333;padding:24px}button{padding:12px}pre{white-space:pre-wrap;max-height:140px;overflow:auto}.fixture{display:block;max-width:1000px;margin:24px 0}</style>
+</head><body><h1>Mesh: Linien und Abdeckungen</h1>
+<p>Lokaler Vergleich mit den originalen FRITZ!-Regeln für Linienenden. Keine Routerdaten.</p>
+<button id="run">Linien prüfen</button><pre id="result">Bereit.</pre><div id="fixtures"></div>
+<script>
+const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+async function until(fn,ms=5000){const start=performance.now();while(!fn()){if(performance.now()-start>ms)throw Error('Zeitlimit');await frame()}}
+const nativeCSS=`
+:host{display:block;--white-100:#fff;color:#333;font:16px system-ui}
+.topology{position:relative;min-width:600px;padding:16px 24px;background:var(--white-100);--background-color:var(--white-100);--cover-display:none}
+.title{font-weight:600;margin:0 0 24px}.row{display:flex;align-items:center;height:44px;gap:12px}.label{width:160px;flex:none}
+.js3-topology-node{--cover-color:var(--white-100);--cover-display:block;position:relative}
+.js3-topology-node__connection-cover--active::before{background-color:var(--cover-color);content:" ";display:var(--cover-display);height:1.75rem;margin-left:-.25rem;position:absolute;width:.5em;z-index:2}
+.topology__branches>.topology__device-container:last-of-type{--cover-display:block}
+.topology__vertical-connection{position:relative;width:2px;height:50px;margin-left:208px}
+.topology__branches>.topology__device-container:last-of-type>.topology__vertical-connection::before{background-color:var(--background-color);content:"";display:var(--cover-display);height:calc(100% + .05rem);left:-.4rem;position:absolute;top:.6rem;width:.8rem;z-index:3}
+.js3-topology-connection{--connection-line-height:2px;--connection-line-width:2px;flex:1}
+.js3-topology-connection--horizontal{--connection-line-width:100%;--line-background-repeat:repeat-x}
+.js3-topology-connection--vertical{--connection-line-height:100%;--line-background-repeat:repeat-y;display:block;width:2px;height:50px}
+.js3-topology-connection__line{display:block;height:var(--connection-line-height);width:var(--connection-line-width);background-image:var(--line-background);background-repeat:var(--line-background-repeat)}
+.js3-topology-connection__line--ethernet{--line-background:linear-gradient(#6caa3d,#6caa3d)}
+.js3-topology-connection__line--wifi{--line-background:repeating-linear-gradient(90deg,#6caa3d 0px,#6caa3d 10px,#fff 10px,#fff 18px)}
+.node-end{margin-left:208px;height:32px}.caption{font-size:12px;color:#666;margin-left:172px;margin-bottom:-6px}.vertical-sample{display:flex;align-items:flex-start;gap:12px;margin-top:12px}
+`;
+const content=`<section class="topology"><div class="title">Mesh Übersicht</div>
+<div class="caption">LAN · 1 Gbit/s</div><div class="row"><span class="label">Router → Repeater</span><div class="js3-topology-connection js3-topology-connection--horizontal"><span class="js3-topology-connection__line js3-topology-connection__line--ethernet"></span></div><span>Repeater</span></div>
+${['Notebook','Telefon','Tablet','Smart Home'].map((name,i)=>`<div class="caption">WLAN · ${i%2?'2,4':'5'} GHz</div><div class="row"><span class="label">${i?'':'Repeater → WLAN'}</span><div class="js3-topology-connection js3-topology-connection--horizontal"><span class="js3-topology-connection__line js3-topology-connection__line--wifi"></span></div><span>${name}</span></div>`).join('')}
+<div class="js3-topology-node node-end"><div class="js3-topology-node__connection-cover--active"></div></div>
+<div class="topology__branches"><div class="topology__device-container"><div class="topology__vertical-connection"></div></div></div>
+<div class="vertical-sample"><div class="js3-topology-connection js3-topology-connection--vertical"><span class="js3-topology-connection__line js3-topology-connection__line--wifi"></span></div><span>Vertikale WLAN-Verbindung</span></div></section>`;
+const fixtures=[];
+for(const mode of ['open','closed']){const host=document.createElement('article');host.className='fixture';document.querySelector('#fixtures').append(host);const root=host.attachShadow({mode});const sheet=new CSSStyleSheet();sheet.replaceSync(nativeCSS);root.adoptedStyleSheets=[sheet];root.innerHTML=content;const line=root.querySelector('.js3-topology-connection__line--wifi');fixtures.push({mode,root,before:[line.offsetWidth,line.offsetHeight],lan:getComputedStyle(root.querySelector('.js3-topology-connection__line--ethernet')).backgroundImage})}
+async function test(){const checks=[];const check=(name,ok)=>checks.push({name,ok});document.querySelector('#run').disabled=true;
+try{await until(()=>document.querySelector('#fbdm-v3-switch')&&fixtures.every(f=>getComputedStyle(f.root.querySelector('.topology')).visibility!=='hidden'));
+for(const f of fixtures){const cover=f.root.querySelector('.js3-topology-node__connection-cover--active'),vertical=f.root.querySelector('.topology__vertical-connection'),line=f.root.querySelector('.js3-topology-connection__line--wifi'),verticalLine=f.root.querySelector('.js3-topology-connection--vertical .js3-topology-connection__line--wifi');
+check(f.mode+': weiße Endabdeckung passt zum dunklen Hintergrund',getComputedStyle(cover,'::before').backgroundColor==='rgb(27, 29, 32)');
+check(f.mode+': vertikale Endabdeckung ebenfalls dunkel',getComputedStyle(vertical,'::before').backgroundColor==='rgb(27, 29, 32)');
+check(f.mode+': WLAN horizontal mit gedämpftem Grün und transparenten Lücken',/90deg/.test(getComputedStyle(line).backgroundImage)&&/118, 151, 99/.test(getComputedStyle(line).backgroundImage)&&/rgba\(0, 0, 0, 0\)/.test(getComputedStyle(line).backgroundImage));
+const verticalImage=getComputedStyle(verticalLine).backgroundImage;
+// CSS serializes the default 180-degree direction without an explicit angle.
+const angle=Number(/^repeating-linear-gradient\(([-\d.]+)deg,/.exec(verticalImage)?.[1]??180);
+check(f.mode+': WLAN vertikal mit passender Richtung',verticalImage.startsWith('repeating-linear-gradient(')&&angle===180&&/118, 151, 99/.test(verticalImage));
+check(f.mode+': Linienabmessungen erhalten',f.before[0]===line.offsetWidth&&f.before[1]===line.offsetHeight);
+check(f.mode+': LAN-Farbe und Muster erhalten',getComputedStyle(f.root.querySelector('.js3-topology-connection__line--ethernet')).backgroundImage===f.lan);
+}
+const toggle=closedRoots.get(document.querySelector('#fbdm-v3-switch')).querySelector('button');toggle.click();await frame();
+for(const f of fixtures)check(f.mode+': Hell-Modus stellt originale weiße Abdeckung wieder her',getComputedStyle(f.root.querySelector('.js3-topology-node__connection-cover--active'),'::before').backgroundColor==='rgb(255, 255, 255)');
+toggle.click();await frame();
+for(const f of fixtures)check(f.mode+': Dunkel-Modus stellt ruhige Linien wieder her',/118, 151, 99/.test(getComputedStyle(f.root.querySelector('.js3-topology-connection__line--wifi')).backgroundImage));
+document.querySelector('#result').textContent=(checks.every(c=>c.ok)?'BESTANDEN':'FEHLER')+': '+checks.filter(c=>c.ok).length+'/'+checks.length+' Prüfungen\n\n'+checks.map(c=>(c.ok?'✓ ':'✗ ')+c.name).join('\n');
+}catch(error){document.querySelector('#result').textContent='FEHLER: '+error.message}finally{document.querySelector('#run').disabled=false}}
+document.querySelector('#run').onclick=test;
+</script></body></html>

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><title>Übersicht: laufende Aktualisierungen</title>
+<script>
+const closedRoots=new WeakMap(),attach=Element.prototype.attachShadow;
+Element.prototype.attachShadow=function(...args){const r=Reflect.apply(attach,this,args);closedRoots.set(this,r);return r};
+let reads=0;const originalStyle=window.getComputedStyle.bind(window);
+window.getComputedStyle=(...args)=>{reads++;return originalStyle(...args)};
+document.write('<script src="'+(new URLSearchParams(location.search).has('baseline')?'/baseline.user.js':'/fritzbox-dark.user.js')+'"><\/script>');
+</script>
+<style>
+body{font:16px system-ui;background:white;color:#333;padding:24px}
+button{padding:12px}pre{white-space:pre-wrap}.mesh{background:white;border:1px solid #ddd;padding:16px}
+.device{background:#eee;color:#333;padding:12px;margin:8px 0}
+#bulk{position:absolute;left:-2000px;width:300px}.row{background:white;color:#333}
+</style></head><body>
+<h1>Übersicht: laufende Aktualisierungen</h1>
+<p>Lokaler Test mit künstlichen Geräten und 4.000 Elementen. Keine Routerdaten.</p>
+<button id="run">Tests starten</button><pre id="result">Bereit.</pre>
+<main id="mesh" class="mesh topology"><div class="device">Router → Repeater</div><div class="device">Switch → Computer</div><div id="bulk"></div></main>
+<script>
+const mesh=document.querySelector('#mesh'),bulk=document.querySelector('#bulk'),result=document.querySelector('#result');
+const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const visible=el=>originalStyle(el).visibility!=='hidden';
+async function until(fn,ms=10000){const start=performance.now();while(!fn()){if(performance.now()-start>ms)throw Error('Zeitlimit');await frame()}}
+async function test(){
+ const checks=[],metrics={};const check=(name,ok)=>checks.push({name,ok});
+ document.querySelector('#run').disabled=true;
+ try{
+  await until(()=>document.querySelector('#fbdm-v3-switch')&&visible(document.body));
+  const fragment=document.createDocumentFragment();
+  for(let i=0;i<4000;i++){const e=document.createElement('div');e.className='row';e.textContent='Gerät '+i;fragment.append(e)}
+  bulk.replaceChildren(fragment);
+  await until(()=>bulk.lastElementChild?.hasAttribute('data-fbdm-v3')&&!bulk.querySelector('[data-fbdm-pending]')&&visible(bulk));
+  await pause(100);
+  const dimensions=[mesh.offsetWidth,mesh.offsetHeight];
+  let hidden=0,bright=0,hiddenReplacement=0,replacement;
+  for(let i=0;i<90;i++){
+   mesh.className='mesh topology '+(i%2?'online':'active');
+   if(i===45){replacement=document.createElement('div');replacement.textContent='Vom Live-Update neu aufgebautes Gerät';bulk.firstElementChild.replaceWith(replacement)}
+   await frame();
+   if(!visible(mesh))hidden++;
+   if(replacement&&!visible(replacement))hiddenReplacement++;
+   else if(originalStyle(mesh).backgroundColor==='rgb(255, 255, 255)')bright++;
+  }
+  metrics.hiddenLiveFrames=hidden;metrics.whiteLiveFrames=bright;
+  check('Vorhandene Geräte bleiben bei 90 Aktualisierungen sichtbar',hidden===0);
+  check('Vorhandene Flächen blitzen dabei nicht weiß auf',bright===0);
+  metrics.hiddenReplacementFrames=hiddenReplacement;
+  check('Vom Live-Update ersetzte Mesh-Geräte bleiben sichtbar',hiddenReplacement===0);
+  check('Abmessungen der Übersicht bleiben erhalten',dimensions[0]===mesh.offsetWidth&&dimensions[1]===mesh.offsetHeight);
+  await until(()=>visible(mesh)&&!mesh.querySelector('[data-fbdm-pending]'));
+  await pause(700);
+  reads=0;
+  for(let i=0;i<100;i++)mesh.setAttribute('class',mesh.getAttribute('class'));
+  await pause(100);
+  metrics.unchangedAttributeReads=reads;
+  check('100 unveränderte Klassen verursachen keine Farbprüfung',reads===0);
+  await pause(700);
+  const late=document.createElement('style');late.textContent='.row{border-color:#ccc}';document.head.append(late);
+  let bodyHidden=0;
+  for(let i=0;i<45;i++){await frame();if(!visible(document.body))bodyHidden++}
+  metrics.hiddenStylesheetFrames=bodyHidden;
+  check('Nachgeladenes CSS blendet die fertige Seite nicht erneut aus',bodyHidden===0);
+  // Frameworks also reinsert existing elements when updating sorted device lists.
+  document.body.append(mesh);await frame();
+  check('Verschobene bestehende Geräte bleiben sichtbar',visible(mesh));
+  await pause(700);
+  // Keep the large root busy while a new component arrives. Its protection must expire.
+  const added=document.createElement('section');added.className='device';added.textContent='Neu verbundenes Gerät';mesh.append(added);
+  const start=performance.now();let ticks=0;
+  while(performance.now()-start<1300){mesh.className='mesh topology '+(ticks++%2?'online':'active');await frame()}
+  check('Neue Geräte bleiben unter dauernden Änderungen höchstens kurz verborgen',visible(added));
+  await pause(800);
+  await until(()=>visible(mesh)&&visible(added)&&!mesh.querySelector('[data-fbdm-pending]'));
+  check('Neue Geräte werden ebenfalls dunkel',originalStyle(added).backgroundColor!=='rgb(255, 255, 255)');
+  reads=0;await pause(200);metrics.idleReads=reads;
+  check('Nach den Aktualisierungen kehrt das Script in den Leerlauf zurück',reads===0);
+  result.textContent=(checks.every(c=>c.ok)?'BESTANDEN':'FEHLER')+': '+checks.filter(c=>c.ok).length+'/'+checks.length+' Prüfungen\n'+JSON.stringify(metrics,null,2)+'\n\n'+checks.map(c=>(c.ok?'✓ ':'✗ ')+c.name).join('\n');
+ }catch(error){result.textContent='FEHLER: '+error.message+'\n'+JSON.stringify(metrics,null,2)}
+ finally{document.querySelector('#run').disabled=false}
+}
+document.querySelector('#run').onclick=test;
+</script></body></html>

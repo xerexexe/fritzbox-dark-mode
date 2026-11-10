@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         FRITZ!Box Dark Mode – Shadow DOM
 // @namespace    local.fritzbox.darkmode
-// @version      1.1.2
+// @version      1.1.4
 // @description  Dunkle Oberflächen, auch in Web-Komponenten. Mit Schalter und ohne externe Bibliotheken.
 // @match        *://fritz.box/*
 // @match        *://*.fritz.box/*
@@ -37,7 +37,11 @@
     let button;
     const roots = new Map();
     const owned = new WeakSet();
+    const prepared = new WeakSet();
     const pendingElements = new Set();
+    const pendingTimers = new Map();
+    // Startup protection must never hide live views indefinitely.
+    const MAX_HIDE_MS = 1000;
     // A constructed sheet also exists before <html> is parsed and survives head replacement.
     let startupSheet;
     try {
@@ -140,6 +144,24 @@
         input:disabled, textarea:disabled, select:disabled { color:#89929f!important; background-color:#25282d!important; }
         input::placeholder, textarea::placeholder { color:#9ca4b0!important; }
         .network-topology__ip-address, .network-topology__mesh-master { color:#a8afb9!important; }
+        /* These colors mask line ends; white masks otherwise look like stray bars. */
+        .topology { --background-color:#1b1d20!important; background-color:#1b1d20!important; }
+        .js3-topology-node { --cover-color:#1b1d20!important; }
+        .js3-topology-node__connection-cover--active::before,
+        .topology__branches > .topology__device-container:last-of-type > .topology__vertical-connection::before {
+            background-color:#1b1d20!important;
+        }
+        .js3-topology-node__tooltip-container, .js3-topology-connection__tooltip-box {
+            background-color:#222529!important; color:#e4e7ec!important;
+        }
+        /* Keep WLAN dashed, with quiet green segments and transparent gaps.
+           The original SVG contains light pixels that glare on a dark surface. */
+        .js3-topology-connection--horizontal .js3-topology-connection__line--wifi {
+            background-image:repeating-linear-gradient(90deg,#769763 0px,#769763 10px,transparent 10px,transparent 18px)!important;
+        }
+        .js3-topology-connection--vertical .js3-topology-connection__line--wifi {
+            background-image:repeating-linear-gradient(180deg,#769763 0px,#769763 10px,transparent 10px,transparent 18px)!important;
+        }
         .js3-input__container { background-color:#1b1d20!important; }
         .js3-input__small-label {
             background-image:none!important; background-color:#1b1d20!important; color:#b4bbc5!important;
@@ -176,7 +198,6 @@
         if (root === document && !document.documentElement) return;
         if (!state.base || state.base.getRootNode() !== root) {
             state.base = makeStyle(root, baseCSS);
-            state.ready = false;
             state.full = true;
         }
         if (!state.patches || state.patches.getRootNode() !== root) {
@@ -191,15 +212,42 @@
                 ? 'body{visibility:hidden!important}' : ':host,:host *{visibility:hidden!important}');
         }
         state.guard.disabled = !enabled || state.ready;
+        if (enabled && !state.ready && !state.guardTimer) {
+            state.guardTimer = setTimeout(() => {
+                state.ready = true;
+                state.guard.disabled = true;
+                state.guardTimer = 0;
+            }, MAX_HIDE_MS);
+        }
     }
 
-    function dirty(root, node) {
+    function clearPending(el) {
+        el.removeAttribute(PENDING);
+        pendingElements.delete(el);
+        clearTimeout(pendingTimers.get(el));
+        pendingTimers.delete(el);
+    }
+
+    function inMesh(node) {
+        // FRITZ!OS periodically replaces Mesh nodes. Their fixed dark surfaces
+        // can be shown immediately, including across component shadow boundaries.
+        for (let el = node; el?.nodeType === 1; el = el.getRootNode().host) {
+            if (el.closest('.topology')) return true;
+        }
+        return false;
+    }
+
+    function dirty(root, node, added = false) {
         const state = roots.get(root);
         if (!state || isOurs(node)) return;
         state.targets.add(node);
-        if (enabled && node.nodeType === 1) {
+        // Live class/style updates must not hide an already visible device tree.
+        // Only briefly hold newly inserted content, without extending its deadline.
+        if (enabled && added && node.nodeType === 1 && !prepared.has(node)
+            && !inMesh(node) && !pendingElements.has(node)) {
             node.setAttribute(PENDING, '');
             pendingElements.add(node);
+            pendingTimers.set(node, setTimeout(() => clearPending(node), MAX_HIDE_MS));
         }
         schedule();
     }
@@ -208,8 +256,6 @@
         const state = roots.get(root);
         if (!state) return;
         state.full = true;
-        state.ready = false;
-        if (enabled && state.guard) state.guard.disabled = false;
         schedule();
     }
 
@@ -220,7 +266,7 @@
     function register(root) {
         if (roots.has(root)) return;
         const state = { base: null, patches: null, finish: null, guard: null,
-            observer: null, connected: false, ready: false, full: true,
+            observer: null, connected: false, ready: false, guardTimer: 0, full: true,
             targets: new Set(), queue: new Set(), entries: new Map(), recipes: new Map(), prune: false };
         roots.set(root, state);
         state.onLoad = event => {
@@ -236,6 +282,7 @@
                     continue;
                 }
                 if (record.type === 'attributes') {
+                    if (record.oldValue === record.target.getAttribute(record.attributeName)) continue;
                     dirty(root, record.target);
                     continue;
                 }
@@ -247,7 +294,7 @@
                     if (node.nodeType !== 1 || isOurs(node)) continue;
                     discover(node);
                     if (node.matches('style,link[rel="stylesheet"]')) full(root);
-                    else dirty(root, node);
+                    else dirty(root, node, true);
                 }
                 for (const node of record.removedNodes) {
                     if (node.nodeType !== 1 || isOurs(node)) continue;
@@ -256,10 +303,13 @@
                     schedule();
                 }
             }
+            // A small color change can finish before the next paint. Large live
+            // trees still use bounded animation-frame batches and stay visible.
+            quickUpdate(root, state);
             if (state.full) schedule();
         });
         state.observer.observe(root, {
-            childList: true, subtree: true, attributes: true, characterData: true,
+            childList: true, subtree: true, attributes: true, attributeOldValue: true, characterData: true,
             attributeFilter: ['class', 'style', 'hidden', 'open', 'disabled', 'selected',
                 'aria-expanded', 'aria-selected', 'aria-checked', 'aria-disabled'],
         });
@@ -367,6 +417,7 @@
             });
         }
         elements.forEach((el, i) => {
+            prepared.add(el);
             if (!values[i]) {
                 state.entries.delete(el);
                 return;
@@ -387,10 +438,31 @@
     function releasePending(root) {
         for (const el of pendingElements) {
             if (!el.isConnected || el.getRootNode() === root) {
-                el.removeAttribute(PENDING);
-                pendingElements.delete(el);
+                clearPending(el);
             }
         }
+    }
+
+    function quickUpdate(root, state) {
+        if (!enabled || !state.ready || state.full || state.queue.size || !state.targets.size
+            || !state.patches?.sheet) return;
+        const elements = new Set();
+        let visited = 0;
+        for (const node of state.targets) {
+            if (node.getRootNode() !== root) continue;
+            if (++visited > 24) return;
+            if (eligible(node)) elements.add(node);
+            const walker = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT);
+            for (let el = walker.nextNode(); el; el = walker.nextNode()) {
+                if (++visited > 24) return;
+                if (eligible(el)) elements.add(el);
+            }
+        }
+        try {
+            if (elements.size) measure(state, [...elements]);
+            state.targets.clear();
+            releasePending(root);
+        } catch (_) { /* The scheduled frame retries using the regular fallback. */ }
     }
 
     function flush() {
@@ -403,6 +475,7 @@
                 if (root.host.isConnected) state.connected = true;
                 else if (state.connected) {
                     state.observer.disconnect();
+                    clearTimeout(state.guardTimer);
                     root.removeEventListener('load', state.onLoad, true);
                     for (const style of [state.base,state.patches,state.finish,state.guard]) style?.remove();
                     roots.delete(root);
@@ -448,6 +521,8 @@
             if (!state.queue.size) {
                 state.ready = true;
                 state.guard.disabled = true;
+                clearTimeout(state.guardTimer);
+                state.guardTimer = 0;
                 releasePending(root);
             }
         }
@@ -472,10 +547,11 @@
             if (state.patches) state.patches.disabled = !enabled;
             if (state.finish) state.finish.disabled = !enabled;
             if (state.guard) state.guard.disabled = true;
+            clearTimeout(state.guardTimer);
+            state.guardTimer = 0;
         }
         if (!enabled) {
-            for (const el of pendingElements) el.removeAttribute(PENDING);
-            pendingElements.clear();
+            for (const el of pendingElements) clearPending(el);
         }
         updateButton();
         if (enabled) invalidateAll();
@@ -486,7 +562,7 @@
         if (document.getElementById(UI_ID)) return;
         const host = document.createElement('div');
         host.id = UI_ID;
-        host.setAttribute('data-fbdm-version', '1.1.2');
+        host.setAttribute('data-fbdm-version', '1.1.4');
         owned.add(host);
         host.style.cssText = 'all:initial!important;position:fixed!important;right:14px!important;bottom:14px!important;z-index:2147483647!important;display:block!important;';
         const ui = host.attachShadow({ mode: 'closed' });

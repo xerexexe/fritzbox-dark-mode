@@ -1,5 +1,18 @@
 # Änderungen
 
+## 1.1.4 — 2026-11-10
+
+- Bereits sichtbare Bereiche bleiben bei Klassen-/Stiländerungen, nachgeladenem CSS und Größenänderungen sichtbar. Verschobene bestehende Elemente werden nicht erneut ausgeblendet.
+- Neu aufgebaute Mesh-Geräte vom Ausblendschutz ausnehmen, damit Live-Aktualisierungen die Geräteanzeige nicht leeren. Datenaktualisierungen selbst bleiben aktiv.
+- Startschutz und vorübergehendes Ausblenden neuer Flächen auf höchstens eine Sekunde begrenzen.
+- Unveränderte Attribute ignorieren; kleine Änderungen mit höchstens 24 besuchten Elementen vor dem nächsten Bild nachfärben. Große Änderungen weiterhin in begrenzten Animationsframe-Portionen bearbeiten.
+- Weiße Balken an Mesh-Linienenden korrigieren: Die Pseudoelemente und ihre Abdeckfarben passen jetzt zum dunklen Hintergrund.
+- Klassische horizontale und vertikale WLAN-Linien durch gedämpfte grüne Striche mit transparenten Lücken ersetzen. Linienabmessungen, LAN-Muster und Geräteanordnung bleiben erhalten.
+- Mesh-Tooltips direkt abdunkeln.
+- 45 lokale Prüfungen bestanden: 19 Belastungsprüfungen mit 12.000 Elementen, 10 Prüfungen laufender Aktualisierungen und 16 Mesh-Prüfungen. Beim Vergleich mit 1.1.3 blieb ein Ersatzgerät in 45 erfassten Bildern verborgen; mit 1.1.4 in keinem.
+- Installierte 1.1.4, dunkle Endabdeckungen und die neuen WLAN-Linien im echten Chrome-/Tampermonkey-Tab auf FRITZ!Box 7590 AX mit FRITZ!OS 8.51 geprüft und vom Nutzer freigegeben.
+- Der lokale Teststand 1.1.3 ist enthalten und wurde nicht separat veröffentlicht.
+
 ## 1.1.2 — 2026-11-02
 
 - Blockaden aus 1.1.0 behoben: Vollständige Farbprüfungen bei Mausbewegungen und gewöhnlichen Textänderungen entfernt.
